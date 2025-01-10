@@ -1,0 +1,144 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f0f2f5;
+    color: #1c1e21;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#clock {
+    font-size: 1.2em;
+    color: #65676b;
+}
+
+.message-form {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+textarea {
+    width: 100%;
+    min-height: 100px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    resize: vertical;
+    margin-bottom: 15px;
+    font-size: 16px;
+}
+
+.form-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.upload-controls {
+    display: flex;
+    gap: 10px;
+}
+
+button {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s;
+}
+
+#submitBtn {
+    background: #1877f2;
+    color: white;
+}
+
+#submitBtn:hover {
+    background: #166fe5;
+}
+
+.upload-btn, #emojiBtn {
+    background: #e4e6eb;
+    color: #050505;
+    padding: 8px 12px;
+}
+
+.upload-btn:hover, #emojiBtn:hover {
+    background: #d8dadf;
+}
+
+.message {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    color: #65676b;
+    font-size: 0.9em;
+}
+
+.message-content {
+    margin-bottom: 15px;
+    line-height: 1.5;
+}
+
+.message-image {
+    max-width: 100%;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+@media (max-width: 600px) {
+    .container {
+        padding: 10px;
+    }
+
+    header {
+        flex-direction: column;
+        text-align: center;
+        gap: 10px;
+    }
+
+    .form-controls {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .upload-controls {
+        width: 100%;
+        justify-content: center;
+    }
+
+    #submitBtn {
+        width: 100%;
+    }
+} 

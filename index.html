@@ -14,22 +14,20 @@ canvas { display: block; position: absolute; top: 0; left: 0; }
 <canvas id="game"></canvas>
 <script>
 // ============================================================
-// 影武传说 Phantom Brawl v2 - 完整版
+// 影武传说 Phantom Brawl - 横屏 + 自绘素材版
 // ============================================================
 
-// ---- 常量 ----
 const FIXED_STEP = 1000 / 60;
-const CANVAS_W = 390;
-const CANVAS_H = 844;
-const GROUND_Y = 700;
-const LEFT_BOUND = 25;
-const RIGHT_BOUND = 365;
+const CANVAS_W = 1280;
+const CANVAS_H = 720;
+const GROUND_Y = 580;
+const LEFT_BOUND = 80;
+const RIGHT_BOUND = 1200;
 const INPUT_BUFFER = 8;
 const MAX_HP = 1000;
 const ROUND_DURATION = 99 * 60;
 const WINS_NEEDED = 2;
 
-// ---- Canvas ----
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let scale = 1, gameW = CANVAS_W, gameH = CANVAS_H;
@@ -37,7 +35,7 @@ let scale = 1, gameW = CANVAS_W, gameH = CANVAS_H;
 function resizeCanvas() {
   const w = window.innerWidth, h = window.innerHeight;
   const ratio = CANVAS_W / CANVAS_H;
-  gameH = w / h > ratio ? h : w / ratio;
+  gameH = w / h > ratio ? w / ratio : h;
   gameW = gameH * ratio;
   scale = gameW / CANVAS_W;
   canvas.style.width = gameW + 'px';
@@ -48,93 +46,94 @@ function resizeCanvas() {
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
-// ---- 工具 ----
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 function rectOverlap(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
 function rand(min, max) { return min + Math.random() * (max - min); }
 function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
-function lerpColor(c1, c2, t) {
-  const r1 = parseInt(c1.slice(1,3),16), g1 = parseInt(c1.slice(3,5),16), b1 = parseInt(c1.slice(5,7),16);
-  const r2 = parseInt(c2.slice(1,3),16), g2 = parseInt(c2.slice(3,5),16), b2 = parseInt(c2.slice(5,7),16);
-  const r = Math.round(r1 + (r2 - r1) * t), g = Math.round(g1 + (g2 - g1) * t), b = Math.round(b1 + (b2 - b1) * t);
-  return '#' + r.toString(16).padStart(2,'0') + g.toString(16).padStart(2,'0') + b.toString(16).padStart(2,'0');
-}
+function toRad(d) { return d * Math.PI / 180; }
 
-// ---- 角色数据 ----
+// ============================================================
+// 角色数据
+// ============================================================
 const CHARACTERS = {
   shadow_blade: {
-    id:'shadow_blade', name:'影刃', color:'#4a4ae8', accent:'#7b7bff', desc:'速度快，空中连段多',
-    walkSpeed:5.0, jumpVelocity:-13, gravity:0.6,
-    attacks:{ lp:{dmg:40,range:50,startup:4,active:3,recovery:6,hStun:12,bStun:8,kb:50},
-      hp:{dmg:100,range:55,startup:8,active:4,recovery:12,hStun:20,bStun:12,kb:100},
-      sp_r:{dmg:120,range:80,startup:6,active:4,recovery:14,hStun:22,bStun:14,kb:130,name:'暗影突刺'},
-      sp_ur:{dmg:100,range:60,startup:5,active:4,recovery:12,hStun:18,bStun:10,kb:90,name:'升龙斩'},
-      sp_u:{dmg:110,range:55,startup:6,active:4,recovery:15,hStun:20,bStun:12,kb:80,name:'冲天击'},
-      sp_ul:{dmg:90,range:65,startup:5,active:4,recovery:10,hStun:16,bStun:10,kb:70,name:'回旋踢'},
-      sp_l:{dmg:80,range:70,startup:4,active:3,recovery:10,hStun:15,bStun:8,kb:60,name:'后退斩'},
-      sp_dl:{dmg:70,range:60,startup:5,active:3,recovery:10,hStun:14,bStun:8,kb:50,name:'扫堂腿'},
-      sp_d:{dmg:130,range:50,startup:10,active:5,recovery:18,hStun:24,bStun:14,kb:60,name:'震地击'},
-      sp_dr:{dmg:100,range:75,startup:5,active:4,recovery:12,hStun:18,bStun:10,kb:100,name:'突袭'}
+    id:'shadow_blade', name:'影刃', color:'#3a3ad0', accent:'#8080ff', skin:'#f5d0c5', desc:'速度快，空中连段多',
+    walkSpeed:5.5, jumpVelocity:-14, gravity:0.55,
+    style:'ninja',
+    attacks:{ lp:{dmg:40,range:70,startup:4,active:3,recovery:5,hStun:12,bStun:8,kb:55},
+      hp:{dmg:100,range:75,startup:8,active:4,recovery:10,hStun:20,bStun:12,kb:105},
+      sp_r:{dmg:120,range:110,startup:6,active:4,recovery:12,hStun:22,bStun:14,kb:140,name:'暗影突刺'},
+      sp_ur:{dmg:100,range:80,startup:5,active:4,recovery:10,hStun:18,bStun:10,kb:95,name:'升龙斩'},
+      sp_u:{dmg:110,range:70,startup:6,active:4,recovery:12,hStun:20,bStun:12,kb:85,name:'冲天击'},
+      sp_ul:{dmg:90,range:85,startup:5,active:4,recovery:8,hStun:16,bStun:10,kb:75,name:'回旋踢'},
+      sp_l:{dmg:80,range:90,startup:4,active:3,recovery:8,hStun:15,bStun:8,kb:65,name:'后退斩'},
+      sp_dl:{dmg:70,range:80,startup:5,active:3,recovery:8,hStun:14,bStun:8,kb:55,name:'扫堂腿'},
+      sp_d:{dmg:130,range:70,startup:10,active:5,recovery:15,hStun:24,bStun:14,kb:65,name:'震地击'},
+      sp_dr:{dmg:100,range:100,startup:5,active:4,recovery:10,hStun:18,bStun:10,kb:110,name:'突袭'}
     }
   },
   thunder: {
-    id:'thunder', name:'雷霆', color:'#e8c84a', accent:'#fff44f', desc:'攻击带电，可麻痹对手',
-    walkSpeed:4.0, jumpVelocity:-12, gravity:0.6,
-    attacks:{ lp:{dmg:35,range:48,startup:4,active:3,recovery:5,hStun:10,bStun:7,kb:45,elec:1},
-      hp:{dmg:90,range:52,startup:7,active:4,recovery:11,hStun:18,bStun:10,kb:90,elec:1},
-      sp_r:{dmg:110,range:75,startup:5,active:4,recovery:13,hStun:20,bStun:12,kb:120,name:'雷神冲刺',elec:1},
-      sp_ur:{dmg:95,range:55,startup:5,active:4,recovery:11,hStun:16,bStun:9,kb:85,name:'雷升拳',elec:1},
-      sp_u:{dmg:100,range:50,startup:6,active:4,recovery:14,hStun:18,bStun:11,kb:75,name:'雷霆击',elec:1},
-      sp_ul:{dmg:85,range:60,startup:4,active:4,recovery:9,hStun:15,bStun:9,kb:65,name:'电光踢',elec:1},
-      sp_l:{dmg:75,range:65,startup:4,active:3,recovery:9,hStun:14,bStun:7,kb:55,name:'后撤雷击',elec:1},
-      sp_dl:{dmg:65,range:55,startup:4,active:3,recovery:9,hStun:13,bStun:7,kb:45,name:'扫雷腿',elec:1},
-      sp_d:{dmg:120,range:48,startup:9,active:5,recovery:17,hStun:22,bStun:13,kb:55,name:'雷神之锤',elec:1},
-      sp_dr:{dmg:95,range:70,startup:5,active:4,recovery:11,hStun:17,bStun:9,kb:95,name:'雷袭',elec:1}
+    id:'thunder', name:'雷霆', color:'#c4a020', accent:'#fff050', skin:'#2a2a2a', desc:'攻击带电，可麻痹对手',
+    walkSpeed:4.2, jumpVelocity:-12, gravity:0.6,
+    style:'warrior',
+    attacks:{ lp:{dmg:35,range:65,startup:4,active:3,recovery:4,hStun:10,bStun:7,kb:48,elec:1},
+      hp:{dmg:90,range:70,startup:7,active:4,recovery:9,hStun:18,bStun:10,kb:95,elec:1},
+      sp_r:{dmg:110,range:100,startup:5,active:4,recovery:11,hStun:20,bStun:12,kb:125,name:'雷神冲刺',elec:1},
+      sp_ur:{dmg:95,range:75,startup:5,active:4,recovery:9,hStun:16,bStun:9,kb:88,name:'雷升拳',elec:1},
+      sp_u:{dmg:100,range:65,startup:6,active:4,recovery:11,hStun:18,bStun:11,kb:78,name:'雷霆击',elec:1},
+      sp_ul:{dmg:85,range:80,startup:4,active:4,recovery:7,hStun:15,bStun:9,kb:68,name:'电光踢',elec:1},
+      sp_l:{dmg:75,range:85,startup:4,active:3,recovery:7,hStun:14,bStun:7,kb:58,name:'后撤雷击',elec:1},
+      sp_dl:{dmg:65,range:75,startup:4,active:3,recovery:7,hStun:13,bStun:7,kb:48,name:'扫雷腿',elec:1},
+      sp_d:{dmg:120,range:65,startup:9,active:5,recovery:14,hStun:22,bStun:13,kb:58,name:'雷神之锤',elec:1},
+      sp_dr:{dmg:95,range:95,startup:5,active:4,recovery:9,hStun:17,bStun:9,kb:100,name:'雷袭',elec:1}
     }
   },
   boulder: {
-    id:'boulder', name:'巨石', color:'#8b6914', accent:'#c4a44a', desc:'霸体、伤害高、移动慢',
-    walkSpeed:3.0, jumpVelocity:-10, gravity:0.6,
-    attacks:{ lp:{dmg:50,range:50,startup:5,active:3,recovery:8,hStun:14,bStun:10,kb:55},
-      hp:{dmg:120,range:55,startup:10,active:4,recovery:15,hStun:24,bStun:14,kb:120},
-      sp_r:{dmg:140,range:70,startup:8,active:5,recovery:16,hStun:26,bStun:16,kb:140,name:'巨岩冲撞'},
-      sp_ur:{dmg:110,range:55,startup:7,active:4,recovery:13,hStun:20,bStun:12,kb:95,name:'岩升拳'},
-      sp_u:{dmg:120,range:50,startup:8,active:4,recovery:16,hStun:22,bStun:14,kb:80,name:'巨石冲天'},
-      sp_ul:{dmg:100,range:60,startup:6,active:4,recovery:12,hStun:18,bStun:11,kb:75,name:'回旋岩击'},
-      sp_l:{dmg:90,range:65,startup:5,active:3,recovery:11,hStun:16,bStun:10,kb:65,name:'后撤岩击'},
-      sp_dl:{dmg:80,range:55,startup:6,active:3,recovery:11,hStun:15,bStun:9,kb:55,name:'岩扫腿'},
-      sp_d:{dmg:150,range:55,startup:12,active:6,recovery:20,hStun:28,bStun:16,kb:70,name:'大地震击'},
-      sp_dr:{dmg:115,range:70,startup:7,active:4,recovery:14,hStun:20,bStun:12,kb:110,name:'岩袭'}
+    id:'boulder', name:'巨石', color:'#6a5010', accent:'#a08030', skin:'#c8b090', desc:'霸体、伤害高、移动慢',
+    walkSpeed:3.0, jumpVelocity:-10, gravity:0.65,
+    style:'golem',
+    attacks:{ lp:{dmg:50,range:68,startup:5,active:3,recovery:7,hStun:14,bStun:10,kb:60},
+      hp:{dmg:120,range:75,startup:10,active:4,recovery:13,hStun:24,bStun:14,kb:130},
+      sp_r:{dmg:140,range:100,startup:8,active:5,recovery:14,hStun:26,bStun:16,kb:150,name:'巨岩冲撞'},
+      sp_ur:{dmg:110,range:75,startup:7,active:4,recovery:11,hStun:20,bStun:12,kb:100,name:'岩升拳'},
+      sp_u:{dmg:120,range:65,startup:8,active:4,recovery:13,hStun:22,bStun:14,kb:85,name:'巨石冲天'},
+      sp_ul:{dmg:100,range:80,startup:6,active:4,recovery:10,hStun:18,bStun:11,kb:80,name:'回旋岩击'},
+      sp_l:{dmg:90,range:85,startup:5,active:3,recovery:9,hStun:16,bStun:10,kb:70,name:'后撤岩击'},
+      sp_dl:{dmg:80,range:75,startup:6,active:3,recovery:9,hStun:15,bStun:9,kb:60,name:'岩扫腿'},
+      sp_d:{dmg:150,range:70,startup:12,active:6,recovery:17,hStun:28,bStun:16,kb:75,name:'大地震击'},
+      sp_dr:{dmg:115,range:95,startup:7,active:4,recovery:12,hStun:20,bStun:12,kb:120,name:'岩袭'}
     }
   },
   flame_dancer: {
-    id:'flame_dancer', name:'焰舞', color:'#e84020', accent:'#ff6b3a', desc:'火焰持续伤害',
-    walkSpeed:4.5, jumpVelocity:-12.5, gravity:0.6,
-    attacks:{ lp:{dmg:38,range:48,startup:4,active:3,recovery:6,hStun:11,bStun:8,kb:48,fire:1},
-      hp:{dmg:95,range:52,startup:7,active:4,recovery:11,hStun:19,bStun:11,kb:95,fire:1},
-      sp_r:{dmg:115,range:75,startup:5,active:4,recovery:12,hStun:21,bStun:13,kb:125,name:'火焰突进',fire:1},
-      sp_ur:{dmg:95,range:55,startup:5,active:4,recovery:11,hStun:17,bStun:10,kb:88,name:'焰升拳',fire:1},
-      sp_u:{dmg:105,range:50,startup:6,active:4,recovery:14,hStun:19,bStun:12,kb:78,name:'炎天击',fire:1},
-      sp_ul:{dmg:88,range:60,startup:5,active:4,recovery:10,hStun:16,bStun:9,kb:68,name:'火焰踢',fire:1},
-      sp_l:{dmg:78,range:65,startup:4,active:3,recovery:9,hStun:14,bStun:8,kb:58,name:'焰退斩',fire:1},
-      sp_dl:{dmg:68,range:55,startup:5,active:3,recovery:9,hStun:13,bStun:8,kb:48,name:'火扫腿',fire:1},
-      sp_d:{dmg:125,range:48,startup:10,active:5,recovery:17,hStun:23,bStun:14,kb:58,name:'烈焰震击',fire:1},
-      sp_dr:{dmg:98,range:70,startup:5,active:4,recovery:11,hStun:18,bStun:10,kb:98,name:'火袭',fire:1}
+    id:'flame_dancer', name:'焰舞', color:'#c83010', accent:'#ff5530', skin:'#f5d0c5', desc:'火焰持续伤害',
+    walkSpeed:4.8, jumpVelocity:-13, gravity:0.58,
+    style:'monk',
+    attacks:{ lp:{dmg:38,range:63,startup:4,active:3,recovery:5,hStun:11,bStun:8,kb:50,fire:1},
+      hp:{dmg:95,range:70,startup:7,active:4,recovery:9,hStun:19,bStun:11,kb:100,fire:1},
+      sp_r:{dmg:115,range:105,startup:5,active:4,recovery:10,hStun:21,bStun:13,kb:130,name:'火焰突进',fire:1},
+      sp_ur:{dmg:95,range:75,startup:5,active:4,recovery:9,hStun:17,bStun:10,kb:90,name:'焰升拳',fire:1},
+      sp_u:{dmg:105,range:65,startup:6,active:4,recovery:11,hStun:19,bStun:12,kb:80,name:'炎天击',fire:1},
+      sp_ul:{dmg:88,range:80,startup:5,active:4,recovery:8,hStun:16,bStun:9,kb:70,name:'火焰踢',fire:1},
+      sp_l:{dmg:78,range:85,startup:4,active:3,recovery:7,hStun:14,bStun:8,kb:60,name:'焰退斩',fire:1},
+      sp_dl:{dmg:68,range:75,startup:5,active:3,recovery:7,hStun:13,bStun:8,kb:50,name:'火扫腿',fire:1},
+      sp_d:{dmg:125,range:65,startup:10,active:5,recovery:14,hStun:23,bStun:14,kb:60,name:'烈焰震击',fire:1},
+      sp_dr:{dmg:98,range:95,startup:5,active:4,recovery:9,hStun:18,bStun:10,kb:105,name:'火袭',fire:1}
     }
   },
   frost_whisper: {
-    id:'frost_whisper', name:'霜语', color:'#40c0e8', accent:'#80eeff', desc:'冻结对手',
-    walkSpeed:4.2, jumpVelocity:-12.5, gravity:0.6,
-    attacks:{ lp:{dmg:36,range:50,startup:4,active:3,recovery:5,hStun:11,bStun:7,kb:45,freeze:1},
-      hp:{dmg:88,range:54,startup:7,active:4,recovery:10,hStun:18,bStun:10,kb:90,freeze:1},
-      sp_r:{dmg:108,range:78,startup:5,active:4,recovery:12,hStun:20,bStun:12,kb:120,name:'霜冻突进',freeze:1},
-      sp_ur:{dmg:90,range:58,startup:5,active:4,recovery:11,hStun:16,bStun:9,kb:85,name:'冰升拳',freeze:1},
-      sp_u:{dmg:100,range:52,startup:6,active:4,recovery:13,hStun:18,bStun:11,kb:75,name:'冰天击',freeze:1},
-      sp_ul:{dmg:82,range:62,startup:5,active:4,recovery:9,hStun:15,bStun:9,kb:65,name:'冰旋踢',freeze:1},
-      sp_l:{dmg:72,range:68,startup:4,active:3,recovery:9,hStun:14,bStun:7,kb:55,name:'冰退斩',freeze:1},
-      sp_dl:{dmg:62,range:58,startup:5,active:3,recovery:9,hStun:13,bStun:7,kb:45,name:'冰扫腿',freeze:1},
-      sp_d:{dmg:118,range:50,startup:10,active:5,recovery:16,hStun:22,bStun:13,kb:55,name:'冰霜震击',freeze:1},
-      sp_dr:{dmg:92,range:72,startup:5,active:4,recovery:11,hStun:17,bStun:9,kb:95,name:'冰袭',freeze:1}
+    id:'frost_whisper', name:'霜语', color:'#30a0c8', accent:'#70d0ff', skin:'#e8f0ff', desc:'冻结对手',
+    walkSpeed:4.5, jumpVelocity:-12, gravity:0.58,
+    style:'mage',
+    attacks:{ lp:{dmg:36,range:65,startup:4,active:3,recovery:4,hStun:11,bStun:7,kb:48,freeze:1},
+      hp:{dmg:88,range:72,startup:7,active:4,recovery:8,hStun:18,bStun:10,kb:95,freeze:1},
+      sp_r:{dmg:108,range:108,startup:5,active:4,recovery:10,hStun:20,bStun:12,kb:125,name:'霜冻突进',freeze:1},
+      sp_ur:{dmg:90,range:78,startup:5,active:4,recovery:9,hStun:16,bStun:9,kb:88,name:'冰升拳',freeze:1},
+      sp_u:{dmg:100,range:68,startup:6,active:4,recovery:11,hStun:18,bStun:11,kb:78,name:'冰天击',freeze:1},
+      sp_ul:{dmg:82,range:82,startup:5,active:4,recovery:8,hStun:15,bStun:9,kb:68,name:'冰旋踢',freeze:1},
+      sp_l:{dmg:72,range:88,startup:4,active:3,recovery:7,hStun:14,bStun:7,kb:58,name:'冰退斩',freeze:1},
+      sp_dl:{dmg:62,range:78,startup:5,active:3,recovery:7,hStun:13,bStun:7,kb:48,name:'冰扫腿',freeze:1},
+      sp_d:{dmg:118,range:68,startup:10,active:5,recovery:13,hStun:22,bStun:13,kb:58,name:'冰霜震击',freeze:1},
+      sp_dr:{dmg:92,range:98,startup:5,active:4,recovery:9,hStun:17,bStun:9,kb:100,name:'冰袭',freeze:1}
     }
   }
 };
@@ -142,7 +141,9 @@ const CHARACTERS = {
 const DIR_NAMES = ['','→','↗','↑','↖','←','↙','↓','↘'];
 const DIR_KEYS = { 1:'r', 2:'ur', 3:'u', 4:'ul', 5:'l', 6:'dl', 7:'d', 8:'dr' };
 
-// ---- 存档系统 ----
+// ============================================================
+// 存档系统
+// ============================================================
 const SAVE_KEY = 'phantom_save';
 const DEFAULT_SAVE = {
   gold: 5000, unlockedCharacters: ['shadow_blade','thunder','boulder'],
@@ -152,93 +153,42 @@ const DEFAULT_SAVE = {
   settings: { sound:true, vibration:true }
 };
 let saveData = JSON.parse(JSON.stringify(DEFAULT_SAVE));
-
-function loadSave() {
-  try { const r = localStorage.getItem(SAVE_KEY); if (r) { const p = JSON.parse(r); saveData = Object.assign(JSON.parse(JSON.stringify(DEFAULT_SAVE)), p); } }
-  catch(e) { saveData = JSON.parse(JSON.stringify(DEFAULT_SAVE)); }
-}
+function loadSave() { try { const r = localStorage.getItem(SAVE_KEY); if (r) { const p = JSON.parse(r); saveData = Object.assign(JSON.parse(JSON.stringify(DEFAULT_SAVE)), p); } } catch(e) {} }
 function saveToDisk() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(saveData)); } catch(e) {} }
 loadSave();
 
-// 导出/导入
-function exportSave() {
-  const blob = new Blob([JSON.stringify(saveData,null,2)], { type:'application/json' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = 'phantom_save.json'; a.click();
-}
-function importSave(file) {
-  const reader = new FileReader();
-  reader.onload = () => { try { saveData = JSON.parse(reader.result); saveToDisk(); location.reload(); } catch(e) {} };
-  reader.readAsText(file);
-}
-
-// 检查解锁
 function checkUnlocks() {
   if (saveData.fragments.flame_dancer >= 20 && !saveData.unlockedCharacters.includes('flame_dancer')) {
-    saveData.unlockedCharacters.push('flame_dancer');
-    saveData.fragments.flame_dancer = 0;
-    return '解锁角色: 焰舞!';
+    saveData.unlockedCharacters.push('flame_dancer'); saveData.fragments.flame_dancer = 0; return '解锁角色: 焰舞!';
   }
   if (saveData.fragments.frost_whisper >= 20 && !saveData.unlockedCharacters.includes('frost_whisper')) {
-    saveData.unlockedCharacters.push('frost_whisper');
-    saveData.fragments.frost_whisper = 0;
-    return '解锁角色: 霜语!';
+    saveData.unlockedCharacters.push('frost_whisper'); saveData.fragments.frost_whisper = 0; return '解锁角色: 霜语!';
   }
   return null;
 }
 
-// ---- 状态机 ----
-const STATE = { MENU:0, CHAR_SELECT:1, FIGHTING:2, TRAINING:3, SHADOW_DOJO:4, AUTO_BATTLE:5, RESULT:6 };
-let gameState = STATE.MENU;
-let stateSubState = null; // ROUND_INTRO, FIGHT, ROUND_END, MATCH_END
-let stateTimer = 0;
-let menuSelection = 0;
-const MENU_ITEMS = ['征战之路 PVE', '双人对战', '训练模式', '影武道场', '离线斗技场'];
-let charSelectP1 = 0, charSelectP2 = 0;
-let unlockedCharIds = [];
-let fightMode = 'pve';
-let roundNumber = 0;
-let p1Wins = 0, p2Wins = 0;
-let roundTimer = 0;
-let comboCount = 0;
-let maxCombo = 0;
-let hitSparkTimer = 0;
-let screenShake = 0;
-let roundMessages = [];
-let notificationText = '';
-let notificationTimer = 0;
-let unlockMsg = '';
-let unlockMsgTimer = 0;
-
-// ---- 输入处理 ----
+// ============================================================
+// 输入处理
+// ============================================================
 class InputHandler {
   constructor() {
-    this.dirQueue = new Array(60).fill(0);
-    this.dirIndex = 0;
-    this.currentDir = 0;
+    this.dirQueue = new Array(60).fill(0); this.dirIndex = 0; this.currentDir = 0;
     this.joystickActive = false;
     this.joystickBase = { x:0, y:0 };
     this.joystickCurrent = { x:0, y:0 };
     this.joystickDrag = { dx:0, dy:0, dist:0, angle:0 };
     this._lastDragDy = 0;
     this.rapidFlick = false;
-    this.flickStartTime = 0;
-    this.flickStartY = 0;
-    this.flickSpeed = 0;
-
+    this.flickStartTime = 0; this.flickStartY = 0; this.flickSpeed = 0;
     this.lp = false; this.lpJust = false;
     this.hp = false; this.hpHold = false; this.hpHoldStart = 0; this.hpJust = false;
     this.sp = false; this.spDir = -1; this.spStart = { x:0, y:0 }; this.spJust = false;
     this.block = false; this.blockTimer = 0;
-
     this.buffer = [];
     this.joystickId = null;
     this.buttonId_lp = null; this.buttonId_hp = null; this.buttonId_sp = null;
-
-    // 键盘
     this.keys = {};
-    this._setupTouch();
-    this._setupKeyboard();
+    this._setupTouch(); this._setupKeyboard();
   }
 
   _setupTouch() {
@@ -266,25 +216,19 @@ class InputHandler {
       if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'ArrowRight' || e.key === 'd' ||
           e.key === 'ArrowUp' || e.key === 'w' || e.key === 'ArrowDown' || e.key === 's') {
         if (!this.keys['ArrowLeft'] && !this.keys['a'] && !this.keys['ArrowRight'] && !this.keys['d'] &&
-            !this.keys['ArrowUp'] && !this.keys['w'] && !this.keys['ArrowDown'] && !this.keys['s']) {
-          this.currentDir = 0;
-        }
+            !this.keys['ArrowUp'] && !this.keys['w'] && !this.keys['ArrowDown'] && !this.keys['s']) this.currentDir = 0;
       }
-      if (e.key === 'j') { this.lp = false; }
+      if (e.key === 'j') this.lp = false;
       if (e.key === 'k') { this.hp = false; this.hpHold = false; }
-      if (e.key === 'u') { this.sp = false; }
-      if (e.key === 'i') { this.block = false; }
-      if (e.key === 'o') { this.rapidFlick = false; }
+      if (e.key === 'u') this.sp = false;
+      if (e.key === 'i') this.block = false;
+      if (e.key === 'o') this.rapidFlick = false;
     });
   }
 
-  _toGameCoords(t) {
-    const rect = canvas.getBoundingClientRect();
-    return { x:(t.clientX - rect.left) / scale, y:(t.clientY - rect.top) / scale };
-  }
-
+  _toGameCoords(t) { const rect = canvas.getBoundingClientRect(); return { x:(t.clientX-rect.left)/scale, y:(t.clientY-rect.top)/scale }; }
   _getDir8(dx, dy) {
-    if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return 0;
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return 0;
     const a = ((Math.atan2(-dy, dx) * 180 / Math.PI) + 360) % 360;
     if (a >= 337.5 || a < 22.5) return 1;
     if (a < 67.5) return 2;
@@ -300,22 +244,17 @@ class InputHandler {
     e.preventDefault();
     for (const t of e.changedTouches) {
       const p = this._toGameCoords(t);
-      if (p.x < CANVAS_W / 2 && p.y > CANVAS_H / 2) {
+      if (p.x < CANVAS_W / 2 && p.y > CANVAS_H * 0.35) {
         this.joystickActive = true;
         this.joystickBase = { x:p.x, y:p.y };
         this.joystickCurrent = { x:p.x, y:p.y };
-        this.flickStartTime = performance.now();
-        this.flickStartY = p.y;
+        this.flickStartTime = performance.now(); this.flickStartY = p.y;
         this.joystickId = t.identifier;
       }
-      if (p.x > CANVAS_W / 2 && p.y > CANVAS_H * 0.55) {
-        if (p.y < CANVAS_H * 0.72) {
-          this.lp = true; this.lpJust = true; this.buttonId_lp = t.identifier;
-        } else if (p.y < CANVAS_H * 0.85) {
-          this.hp = true; this.hpHold = true; this.hpHoldStart = performance.now(); this.hpJust = true; this.buttonId_hp = t.identifier;
-        } else {
-          this.sp = true; this.spStart = { x:p.x, y:p.y }; this.spDir = -1; this.spJust = true; this.buttonId_sp = t.identifier;
-        }
+      if (p.x > CANVAS_W / 2 && p.y > CANVAS_H * 0.35) {
+        if (p.y < CANVAS_H * 0.55) { this.lp = true; this.lpJust = true; this.buttonId_lp = t.identifier; }
+        else if (p.y < CANVAS_H * 0.75) { this.hp = true; this.hpHold = true; this.hpHoldStart = performance.now(); this.hpJust = true; this.buttonId_hp = t.identifier; }
+        else { this.sp = true; this.spStart = { x:p.x, y:p.y }; this.spDir = -1; this.spJust = true; this.buttonId_sp = t.identifier; }
       }
     }
   }
@@ -332,12 +271,12 @@ class InputHandler {
         this._lastDragDy = dy;
         this.flickSpeed = d / Math.max(1, (performance.now() - this.flickStartTime) / 1000);
         this.currentDir = this._getDir8(dx, dy);
-        if (dy > 20 && d > 20 && performance.now() - this.flickStartTime < 50) this.rapidFlick = true;
-        if (Math.abs(dx) > 20 && this.flickSpeed > 200) this.rapidFlick = true;
+        if (dy > 25 && d > 25 && performance.now() - this.flickStartTime < 50) this.rapidFlick = true;
+        if (Math.abs(dx) > 25 && this.flickSpeed > 200) this.rapidFlick = true;
       }
       if (t.identifier === this.buttonId_sp && this.sp) {
         const sdx = p.x - this.spStart.x, sdy = p.y - this.spStart.y;
-        if (Math.hypot(sdx, sdy) > 15) this.spDir = this._getDir8(sdx, sdy);
+        if (Math.hypot(sdx, sdy) > 20) this.spDir = this._getDir8(sdx, sdy);
       }
     }
   }
@@ -346,16 +285,11 @@ class InputHandler {
     for (const t of e.changedTouches) {
       if (t.identifier === this.joystickId) {
         const elapsed = performance.now() - this.flickStartTime;
-        if (this._lastDragDy > 20 && elapsed < 50) {
-          this.block = true; this.blockTimer = 180;
-        }
+        if (this._lastDragDy > 25 && elapsed < 50) { this.block = true; this.blockTimer = 180; }
         this.joystickActive = false;
         this.joystickCurrent = { ...this.joystickBase };
         this.joystickDrag = { dx:0, dy:0, dist:0, angle:0 };
-        this._lastDragDy = 0;
-        this.currentDir = 0;
-        this.joystickId = null;
-        this.rapidFlick = false;
+        this._lastDragDy = 0; this.currentDir = 0; this.joystickId = null; this.rapidFlick = false;
       }
       if (t.identifier === this.buttonId_lp) { this.lp = false; this.buttonId_lp = null; }
       if (t.identifier === this.buttonId_hp) { this.hp = false; this.hpHold = false; this.buttonId_hp = null; }
@@ -364,151 +298,407 @@ class InputHandler {
   }
 
   update() {
-    this.dirQueue[this.dirIndex] = this.currentDir;
-    this.dirIndex = (this.dirIndex + 1) % 60;
+    this.dirQueue[this.dirIndex] = this.currentDir; this.dirIndex = (this.dirIndex + 1) % 60;
     if (this.lpJust) this.buffer.push({ t:'lp', frame:0 });
     if (this.hpJust) this.buffer.push({ t:'hp', frame:0 });
     if (this.spJust && this.spDir > 0) this.buffer.push({ t:'sp', dir:this.spDir, frame:0 });
-    for (let i = this.buffer.length - 1; i >= 0; i--) {
-      this.buffer[i].frame++;
-      if (this.buffer[i].frame > INPUT_BUFFER) this.buffer.splice(i, 1);
-    }
-    if (this.block && this.blockTimer > 0) {
-      this.blockTimer--;
-      if (this.blockTimer <= 0) this.block = false;
-    }
+    for (let i = this.buffer.length - 1; i >= 0; i--) { this.buffer[i].frame++; if (this.buffer[i].frame > INPUT_BUFFER) this.buffer.splice(i, 1); }
+    if (this.block && this.blockTimer > 0) { this.blockTimer--; if (this.blockTimer <= 0) this.block = false; }
   }
-
-  endFrame() {
-    this.lpJust = false; this.hpJust = false; this.spJust = false;
-  }
+  endFrame() { this.lpJust = false; this.hpJust = false; this.spJust = false; }
 
   drawJoystick(ctx) {
-    const bx = 80, by = CANVAS_H - 120;
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(bx, by, 60, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fill();
-
-    const cx = this.joystickActive ? this.joystickCurrent.x : bx;
-    const cy = this.joystickActive ? this.joystickCurrent.y : by;
-    const cdx = this.joystickActive ? clamp(cx, bx - 60, bx + 60) : bx;
-    const cdy = this.joystickActive ? clamp(cy, by - 60, by + 60) : by;
-
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.beginPath(); ctx.arc(cdx, cdy, 25, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-    ctx.beginPath(); ctx.arc(cdx, cdy, 25, 0, Math.PI * 2); ctx.stroke();
+    const bx = 140, by = CANVAS_H - 140;
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(bx, by, 70, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fill();
+    const cx = this.joystickActive ? clamp(this.joystickCurrent.x, bx - 70, bx + 70) : bx;
+    const cy = this.joystickActive ? clamp(this.joystickCurrent.y, by - 70, by + 70) : by;
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.stroke();
   }
 
   drawButtons(ctx) {
-    const cx = CANVAS_W - 80;
+    const cx = CANVAS_W - 140;
     const buttons = [
-      { y:CANVAS_H * 0.58, label:'轻拳', active:this.lp, color:'rgba(255,150,150,0.5)', activeColor:'#ff9999' },
-      { y:CANVAS_H * 0.74, label:'重拳', active:this.hp, color:'rgba(255,100,100,0.5)', activeColor:'#ff6666' },
-      { y:CANVAS_H * 0.88, label:'必杀', active:this.sp, color:'rgba(255,170,0,0.5)', activeColor:'#ffaa00' }
+      { y:CANVAS_H * 0.42, label:'轻拳', active:this.lp, color:'rgba(255,150,150,0.45)', activeColor:'#ff9999' },
+      { y:CANVAS_H * 0.62, label:'重拳', active:this.hp, color:'rgba(255,100,100,0.45)', activeColor:'#ff6666' },
+      { y:CANVAS_H * 0.82, label:'必杀', active:this.sp, color:'rgba(255,170,0,0.45)', activeColor:'#ffaa00' }
     ];
     buttons.forEach(b => {
       ctx.fillStyle = b.active ? b.activeColor : b.color;
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.roundRect(cx - 30, b.y, 60, 60, 50); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(b.label, cx, b.y + 35);
+      ctx.beginPath(); ctx.roundRect(cx - 40, b.y, 80, 80, 40); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(b.label, cx, b.y + 48);
     });
   }
 }
-
 const input = new InputHandler();
 
-// ---- 粒子系统 ----
+// ============================================================
+// 粒子系统
+// ============================================================
 class Particle {
-  constructor(x, y, vx, vy, life, color, size) {
-    this.x = x; this.y = y; this.vx = vx; this.vy = vy; this.life = life; this.maxLife = life;
-    this.color = color; this.size = size || 3;
-  }
-  update() { this.x += this.vx; this.y += this.vy; this.vy += 0.15; this.life--; }
+  constructor(x, y, vx, vy, life, color, size) { this.x=x; this.y=y; this.vx=vx; this.vy=vy; this.life=life; this.maxLife=life; this.color=color; this.size=size||4; }
+  update() { this.x += this.vx; this.y += this.vy; this.vy += 0.12; this.life--; this.vx *= 0.98; }
   alive() { return this.life > 0; }
-  draw(ctx) {
-    const a = this.life / this.maxLife;
-    ctx.globalAlpha = a;
-    ctx.fillStyle = this.color;
-    ctx.fillRect(this.x - this.size/2, this.y - this.size/2, this.size, this.size);
+  draw(ctx) { const a = this.life / this.maxLife; ctx.globalAlpha = a; ctx.fillStyle = this.color; ctx.fillRect(this.x - this.size/2, this.y - this.size/2, this.size, this.size); ctx.globalAlpha = 1; }
+}
+class ParticlePool {
+  constructor() { this.particles = []; }
+  spawn(x, y, count, color, force, size) { for (let i=0;i<count;i++) { const angle=Math.random()*Math.PI*2; const speed=rand(0.5,1)*(force||3); this.particles.push(new Particle(x, y, Math.cos(angle)*speed, Math.sin(angle)*speed - rand(1,3), rand(10,25), color, size||rand(3,6))); } }
+  update() { for (let i=this.particles.length-1;i>=0;i--) { this.particles[i].update(); if (!this.particles[i].alive()) this.particles.splice(i, 1); } }
+  draw(ctx) { for (const p of this.particles) p.draw(ctx); }
+}
+const particles = new ParticlePool();
+
+// ============================================================
+// 自绘角色素材 - 各角色独特形象
+// ============================================================
+function drawShadowBlade(ctx, f) {
+  const x = f.x, y = f.y, d = f.facingRight ? 1 : -1;
+  const c = f.charData.color, a = f.charData.accent, s = f.charData.skin;
+
+  // 围巾飘带
+  ctx.strokeStyle = a; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  const scarfWave = Math.sin(f.animTick * 0.3) * 8;
+  ctx.beginPath(); ctx.moveTo(x - d * 12, y - 55);
+  ctx.lineTo(x - d * (28 + Math.abs(scarfWave)), y - 52 + scarfWave * 0.3); ctx.stroke();
+
+  // 腿部（弯曲战斗姿态）
+  ctx.strokeStyle = '#222'; ctx.lineWidth = 9; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x, y - 38); ctx.lineTo(x - d * 12, y - 10); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x, y - 38); ctx.lineTo(x + d * 16, y - 8); ctx.stroke();
+  // 鞋子
+  ctx.fillStyle = c;
+  ctx.fillRect(x - d * 20, y - 10, 14 * d, 8);
+  ctx.fillRect(x + d * 8, y - 8, 14 * d, 8);
+
+  // 躯干
+  ctx.fillStyle = '#1a1a2a';
+  ctx.beginPath(); ctx.moveTo(x, y - 95); ctx.lineTo(x + d * 20, y - 45); ctx.lineTo(x, y - 35); ctx.lineTo(x - d * 20, y - 45); ctx.closePath(); ctx.fill();
+  // 护甲条纹
+  ctx.strokeStyle = a; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x, y - 90); ctx.lineTo(x, y - 40); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - d * 8, y - 70); ctx.lineTo(x + d * 8, y - 70); ctx.stroke();
+
+  // 头部
+  ctx.fillStyle = s;
+  ctx.beginPath(); ctx.arc(x, y - 105, 16, 0, Math.PI * 2); ctx.fill();
+  // 面罩
+  ctx.fillStyle = c;
+  ctx.beginPath();
+  ctx.arc(x, y - 105, 16, toRad(-20), toRad(200));
+  ctx.lineTo(x, y - 105); ctx.closePath(); ctx.fill();
+  // 眼睛
+  ctx.fillStyle = a;
+  ctx.beginPath(); ctx.arc(x + d * 6, y - 108, 3, 0, Math.PI * 2); ctx.fill();
+  // 头带
+  ctx.strokeStyle = a; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x - d * 18, y - 112); ctx.lineTo(x - d * 35, y - 118 - scarfWave * 0.2); ctx.stroke();
+
+  // 手臂 + 武器（忍者刀）
+  ctx.strokeStyle = '#1a1a2a'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+  const armExt = (f.animState === 'lp' || f.animState === 'hp' || f.animState === 'special') ? (f.attackPhase === 'active' ? 45 : (f.attackPhase === 'startup' ? 20 : 0)) : 0;
+  // 后臂
+  ctx.beginPath(); ctx.moveTo(x - d * 12, y - 75); ctx.lineTo(x - d * 22, y - 55); ctx.stroke();
+  // 前臂持刀
+  ctx.beginPath(); ctx.moveTo(x + d * 12, y - 75);
+  ctx.lineTo(x + d * (28 + armExt), y - 60 - armExt * 0.2); ctx.stroke();
+  // 刀
+  if (armExt > 0) {
+    ctx.strokeStyle = '#c0c0d0'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(x + d * (25 + armExt), y - 62 - armExt * 0.2);
+    ctx.lineTo(x + d * (60 + armExt), y - 75 - armExt * 0.3); ctx.stroke();
+    // 刀光
+    if (f.attackPhase === 'active') {
+      ctx.strokeStyle = a; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x + d * (28 + armExt), y - 62 - armExt * 0.2);
+      ctx.lineTo(x + d * (55 + armExt), y - 73 - armExt * 0.3); ctx.stroke();
+    }
+  }
+
+  // 残影/闪避效果
+  if (f.dashFrames > 0) {
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = a;
+    ctx.beginPath(); ctx.arc(x - d * 30, y - 50, 20, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
   }
 }
 
-class ParticlePool {
-  constructor() { this.particles = []; }
-  spawn(x, y, count, color, force, size) {
-    for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = rand(0.5, 1) * (force || 3);
-      this.particles.push(new Particle(x, y, Math.cos(angle)*speed, Math.sin(angle)*speed - 2, 10 + rand(0, 15), color, size || rand(2, 4)));
+function drawThunder(ctx, f) {
+  const x = f.x, y = f.y, d = f.facingRight ? 1 : -1;
+  const c = f.charData.color, a = f.charData.accent, s = f.charData.skin;
+
+  // 腿部
+  ctx.strokeStyle = '#333'; ctx.lineWidth = 11; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x - d * 10, y - 35); ctx.lineTo(x - d * 18, y - 8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + d * 10, y - 35); ctx.lineTo(x + d * 18, y - 8); ctx.stroke();
+  ctx.fillStyle = c;
+  ctx.fillRect(x - d * 26, y - 8, 14 * d, 10);
+  ctx.fillRect(x + d * 10, y - 8, 14 * d, 10);
+
+  // 躯干
+  ctx.fillStyle = '#2a2a2a';
+  ctx.beginPath(); ctx.roundRect(x - 22, y - 95, 44, 60, 12); ctx.fill();
+  // 闪电纹
+  ctx.strokeStyle = a; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x - 10, y - 88); ctx.lineTo(x + 5, y - 75); ctx.lineTo(x - 5, y - 68); ctx.lineTo(x + 10, y - 55); ctx.stroke();
+  // 护肩
+  ctx.fillStyle = c;
+  ctx.beginPath(); ctx.arc(x - d * 25, y - 85, 10, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + d * 25, y - 85, 10, 0, Math.PI * 2); ctx.fill();
+
+  // 头部
+  ctx.fillStyle = s;
+  ctx.beginPath(); ctx.arc(x, y - 108, 17, 0, Math.PI * 2); ctx.fill();
+  // 头发（刺猬头）
+  ctx.fillStyle = a;
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const ang = -Math.PI / 2 + (i - 3.5) * 0.25;
+    const px = x + Math.cos(ang) * 20, py = y - 108 + Math.sin(ang) * 20;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath(); ctx.fill();
+  // 眼睛
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(x + d * 6, y - 110, 3.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.arc(x + d * 6, y - 110, 1.5, 0, Math.PI * 2); ctx.fill();
+
+  // 手臂
+  const armExt = (f.animState === 'lp' || f.animState === 'hp' || f.animState === 'special') ? (f.attackPhase === 'active' ? 40 : (f.attackPhase === 'startup' ? 18 : 0)) : 0;
+  ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 8;
+  ctx.beginPath(); ctx.moveTo(x - d * 18, y - 78); ctx.lineTo(x - d * 28, y - 55); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + d * 18, y - 78); ctx.lineTo(x + d * (32 + armExt), y - 58); ctx.stroke();
+  // 拳头电光
+  if (armExt > 0) {
+    ctx.fillStyle = a;
+    ctx.beginPath(); ctx.arc(x + d * (36 + armExt), y - 58, 10, 0, Math.PI * 2); ctx.fill();
+    if (f.attackPhase === 'active') {
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+      for (let i = 0; i < 4; i++) {
+        ctx.beginPath(); ctx.moveTo(x + d * (36 + armExt), y - 58);
+        ctx.lineTo(x + d * (50 + armExt + rand(-8,8)), y - 58 + rand(-15,15)); ctx.stroke();
+      }
     }
   }
-  update() {
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      this.particles[i].update();
-      if (!this.particles[i].alive()) this.particles.splice(i, 1);
-    }
-  }
-  draw(ctx) { for (const p of this.particles) p.draw(ctx); }
+
+  // 麻痹特效叠加在受击时
 }
 
-const particles = new ParticlePool();
+function drawBoulder(ctx, f) {
+  const x = f.x, y = f.y, d = f.facingRight ? 1 : -1;
+  const c = f.charData.color, a = f.charData.accent, s = f.charData.skin;
 
-// ---- 格斗家 ----
+  // 腿部（粗壮）
+  ctx.strokeStyle = c; ctx.lineWidth = 16; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x - 14, y - 35); ctx.lineTo(x - 18, y - 5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 14, y - 35); ctx.lineTo(x + 18, y - 5); ctx.stroke();
+  // 岩石脚
+  ctx.fillStyle = a;
+  ctx.fillRect(x - 32, y - 6, 26, 12);
+  ctx.fillRect(x + 6, y - 6, 26, 12);
+
+  // 躯干（岩石铠甲）
+  ctx.fillStyle = c;
+  ctx.beginPath(); ctx.roundRect(x - 32, y - 105, 64, 72, 18); ctx.fill();
+  // 岩石裂纹
+  ctx.strokeStyle = '#4a3a15'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x - 15, y - 95); ctx.lineTo(x - 5, y - 80); ctx.lineTo(x - 18, y - 70); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 10, y - 88); ctx.lineTo(x + 20, y - 75); ctx.stroke();
+  // 护肩
+  ctx.fillStyle = a;
+  ctx.beginPath(); ctx.arc(x - d * 34, y - 88, 14, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + d * 34, y - 88, 14, 0, Math.PI * 2); ctx.fill();
+
+  // 头部
+  ctx.fillStyle = s;
+  ctx.beginPath(); ctx.arc(x, y - 118, 18, 0, Math.PI * 2); ctx.fill();
+  // 头盔
+  ctx.fillStyle = c;
+  ctx.beginPath(); ctx.arc(x, y - 118, 18, toRad(-10), toRad(190)); ctx.closePath(); ctx.fill();
+  // 眼睛
+  ctx.fillStyle = '#ffd700';
+  ctx.beginPath(); ctx.arc(x + d * 6, y - 120, 3, 0, Math.PI * 2); ctx.fill();
+
+  // 手臂（巨岩拳）
+  const armExt = (f.animState === 'lp' || f.animState === 'hp' || f.animState === 'special') ? (f.attackPhase === 'active' ? 42 : (f.attackPhase === 'startup' ? 20 : 0)) : 0;
+  ctx.strokeStyle = c; ctx.lineWidth = 13;
+  ctx.beginPath(); ctx.moveTo(x - d * 25, y - 82); ctx.lineTo(x - d * 38, y - 58); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + d * 25, y - 82); ctx.lineTo(x + d * (40 + armExt), y - 58); ctx.stroke();
+  // 巨拳
+  ctx.fillStyle = a;
+  ctx.beginPath(); ctx.arc(x + d * (44 + armExt), y - 58, 16, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = c;
+  ctx.beginPath(); ctx.arc(x + d * (44 + armExt), y - 58, 10, 0, Math.PI * 2); ctx.fill();
+
+  // 震地特效
+  if (f.attackPhase === 'active' && f.attackData && f.attackData.name && f.attackData.name.includes('震')) {
+    ctx.strokeStyle = a; ctx.lineWidth = 2;
+    for (let i = 0; i < 5; i++) {
+      ctx.beginPath(); ctx.moveTo(x + d * (50 + armExt), y - 10);
+      ctx.lineTo(x + d * (70 + rand(0,30)), y - 10 - rand(10,40)); ctx.stroke();
+    }
+  }
+}
+
+function drawFlameDancer(ctx, f) {
+  const x = f.x, y = f.y, d = f.facingRight ? 1 : -1;
+  const c = f.charData.color, a = f.charData.accent, s = f.charData.skin;
+
+  // 火焰飘带
+  ctx.strokeStyle = a; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  const flameWave = Math.sin(f.animTick * 0.4) * 10;
+  ctx.beginPath(); ctx.moveTo(x - d * 15, y - 60);
+  ctx.lineTo(x - d * (35 + Math.abs(flameWave) * 0.5), y - 45 + flameWave); ctx.stroke();
+
+  // 腿部
+  ctx.strokeStyle = '#2a1a1a'; ctx.lineWidth = 9;
+  ctx.beginPath(); ctx.moveTo(x - 8, y - 35); ctx.lineTo(x - 14, y - 8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 8, y - 35); ctx.lineTo(x + 14, y - 8); ctx.stroke();
+  // 绑腿
+  ctx.strokeStyle = c; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(x - 16, y - 20); ctx.lineTo(x - 6, y - 20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 6, y - 20); ctx.lineTo(x + 16, y - 20); ctx.stroke();
+
+  // 躯干
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath(); ctx.roundRect(x - 18, y - 92, 36, 58, 10); ctx.fill();
+  // 火焰纹
+  ctx.strokeStyle = a; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x, y - 85); ctx.quadraticCurveTo(x + 8, y - 70, x, y - 55); ctx.stroke();
+
+  // 头部
+  ctx.fillStyle = s;
+  ctx.beginPath(); ctx.arc(x, y - 105, 15, 0, Math.PI * 2); ctx.fill();
+  // 头发（马尾）
+  ctx.fillStyle = c;
+  ctx.beginPath(); ctx.arc(x, y - 105, 15, toRad(-30), toRad(210)); ctx.lineTo(x, y - 105); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x - d * 12, y - 108); ctx.quadraticCurveTo(x - d * 30, y - 100, x - d * 35, y - 85 + flameWave * 0.3); ctx.stroke();
+  // 眼睛
+  ctx.fillStyle = a;
+  ctx.beginPath(); ctx.arc(x + d * 5, y - 107, 3, 0, Math.PI * 2); ctx.fill();
+
+  // 手臂
+  const armExt = (f.animState === 'lp' || f.animState === 'hp' || f.animState === 'special') ? (f.attackPhase === 'active' ? 40 : (f.attackPhase === 'startup' ? 18 : 0)) : 0;
+  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 7;
+  ctx.beginPath(); ctx.moveTo(x - d * 14, y - 78); ctx.lineTo(x - d * 24, y - 55); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + d * 14, y - 78); ctx.lineTo(x + d * (28 + armExt), y - 55); ctx.stroke();
+  // 火焰拳
+  if (armExt > 0) {
+    const fx = x + d * (32 + armExt), fy = y - 55;
+    ctx.fillStyle = c; ctx.beginPath(); ctx.arc(fx, fy, 11, 0, Math.PI * 2); ctx.fill();
+    if (f.attackPhase === 'active') {
+      ctx.fillStyle = '#ffaa00'; ctx.globalAlpha = 0.6;
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath(); ctx.arc(fx + rand(-12,12), fy + rand(-15,15), rand(4,10), 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+function drawFrostWhisper(ctx, f) {
+  const x = f.x, y = f.y, d = f.facingRight ? 1 : -1;
+  const c = f.charData.color, a = f.charData.accent, s = f.charData.skin;
+
+  // 长袍下摆
+  ctx.fillStyle = '#203050';
+  ctx.beginPath(); ctx.moveTo(x, y - 35); ctx.lineTo(x - 25, y - 5); ctx.lineTo(x + 25, y - 5); ctx.closePath(); ctx.fill();
+  // 腿部
+  ctx.strokeStyle = '#203050'; ctx.lineWidth = 8;
+  ctx.beginPath(); ctx.moveTo(x - 8, y - 25); ctx.lineTo(x - 12, y - 5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 8, y - 25); ctx.lineTo(x + 12, y - 5); ctx.stroke();
+
+  // 躯干（长袍）
+  ctx.fillStyle = '#203050';
+  ctx.beginPath(); ctx.moveTo(x, y - 100); ctx.lineTo(x + 28, y - 35); ctx.lineTo(x, y - 25); ctx.lineTo(x - 28, y - 35); ctx.closePath(); ctx.fill();
+  // 冰霜纹
+  ctx.strokeStyle = a; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x, y - 95); ctx.lineTo(x, y - 40); ctx.stroke();
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath(); ctx.moveTo(x - 8, y - 80 + i * 15); ctx.lineTo(x + 8, y - 80 + i * 15); ctx.stroke();
+  }
+  // 肩甲
+  ctx.fillStyle = c;
+  ctx.beginPath(); ctx.arc(x - d * 22, y - 82, 9, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + d * 22, y - 82, 9, 0, Math.PI * 2); ctx.fill();
+
+  // 头部
+  ctx.fillStyle = s;
+  ctx.beginPath(); ctx.arc(x, y - 112, 15, 0, Math.PI * 2); ctx.fill();
+  // 兜帽
+  ctx.fillStyle = c;
+  ctx.beginPath(); ctx.arc(x, y - 112, 15, toRad(-30), toRad(210)); ctx.lineTo(x, y - 112); ctx.closePath(); ctx.fill();
+  // 眼睛发光
+  ctx.fillStyle = a;
+  ctx.beginPath(); ctx.arc(x + d * 5, y - 114, 3, 0, Math.PI * 2); ctx.fill();
+
+  // 法杖 + 手臂
+  const armExt = (f.animState === 'lp' || f.animState === 'hp' || f.animState === 'special') ? (f.attackPhase === 'active' ? 40 : (f.attackPhase === 'startup' ? 18 : 0)) : 0;
+  ctx.strokeStyle = '#203050'; ctx.lineWidth = 7;
+  ctx.beginPath(); ctx.moveTo(x - d * 18, y - 78); ctx.lineTo(x - d * 28, y - 50); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + d * 18, y - 78); ctx.lineTo(x + d * (30 + armExt), y - 55); ctx.stroke();
+
+  // 法杖
+  ctx.strokeStyle = '#5a4020'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(x - d * 28, y - 50); ctx.lineTo(x - d * 32, y + 5); ctx.stroke();
+  // 法杖顶端冰晶
+  ctx.fillStyle = a;
+  ctx.beginPath();
+  ctx.moveTo(x - d * 32, y - 60); ctx.lineTo(x - d * 26, y - 50); ctx.lineTo(x - d * 32, y - 40); ctx.lineTo(x - d * 38, y - 50); ctx.closePath(); ctx.fill();
+
+  // 冰拳特效
+  if (armExt > 0 && f.attackPhase === 'active') {
+    const fx = x + d * (34 + armExt), fy = y - 55;
+    ctx.fillStyle = '#d0f0ff'; ctx.globalAlpha = 0.5;
+    ctx.beginPath(); ctx.arc(fx, fy, 18, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = a; ctx.lineWidth = 2;
+    for (let i = 0; i < 6; i++) {
+      const ang = i * Math.PI / 3;
+      ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx + Math.cos(ang) * 20, fy + Math.sin(ang) * 20); ctx.stroke();
+    }
+  }
+}
+
+// ============================================================
+// 格斗家类
+// ============================================================
 class Fighter {
   constructor(charId, x, facingRight, isPlayer1) {
     const data = CHARACTERS[charId];
     this.charId = charId; this.charData = data;
     this.x = x; this.y = GROUND_Y;
     this.vx = 0; this.vy = 0;
-    this.facingRight = facingRight;
-    this.isPlayer1 = isPlayer1;
-    this.width = 40; this.height = 80;
+    this.facingRight = facingRight; this.isPlayer1 = isPlayer1;
+    this.width = 55; this.height = 110;
     this.hp = MAX_HP; this.maxHp = MAX_HP;
-    this.walkSpeed = data.walkSpeed;
-    this.jumpVelocity = data.jumpVelocity;
-    this.gravity = data.gravity;
-    this.state = 'IDLE';
-    this.grounded = true;
-    this.attackData = null;
-    this.attackPhase = '';
-    this.attackPhaseTimer = 0;
-    this.attackHit = false;
-    this.canAct = true;
-    this.hitStunTimer = 0;
-    this.knockbackVx = 0;
-    this.blocking = false;
-    this.dashFrames = 0;
-    this.invincibleFrames = 0;
-    this.electricParalyze = 0;
-    this.freezeTimer = 0;
-    this.fireDOT = 0;
-    this.fireDOTTimer = 0;
-    this.animState = 'idle';
-    this.animFrameIdx = 0;
-    this.animTick = 0;
-    this.flashTimer = 0;
-    // 统计数据
-    this.totalAttacks = 0; this.specialUsed = 0;
-    this.jumpAttacks = 0; this.blocks = 0; this.dashes = 0;
-    this.hitsLanded = 0; this.hitsTaken = 0;
-    this.combosStarted = 0;
+    this.walkSpeed = data.walkSpeed; this.jumpVelocity = data.jumpVelocity; this.gravity = data.gravity;
+    this.state = 'IDLE'; this.grounded = true;
+    this.attackData = null; this.attackPhase = ''; this.attackPhaseTimer = 0; this.attackHit = false; this.canAct = true;
+    this.hitStunTimer = 0; this.knockbackVx = 0; this.blocking = false;
+    this.dashFrames = 0; this.invincibleFrames = 0;
+    this.electricParalyze = 0; this.freezeTimer = 0; this.fireDOT = 0; this.fireDOTTimer = 0;
+    this.animState = 'idle'; this.animFrameIdx = 0; this.animTick = 0; this.flashTimer = 0;
+    this.totalAttacks = 0; this.specialUsed = 0; this.jumpAttacks = 0; this.blocks = 0; this.dashes = 0;
+    this.hitsLanded = 0; this.hitsTaken = 0; this.combosStarted = 0;
   }
 
   getHitbox() { return { x:this.x - this.width/2, y:this.y - this.height, w:this.width, h:this.height }; }
   getAttackbox() {
     if (!this.attackData || this.attackPhase !== 'active') return null;
-    const range = this.attackData.range;
-    const d = this.facingRight ? 1 : -1;
-    return { x:this.x + (d > 0 ? this.width/2 : -this.width/2 - range), y:this.y - this.height * 0.7, w:range, h:this.height * 0.5 };
+    const range = this.attackData.range, d = this.facingRight ? 1 : -1;
+    return { x:this.x + (d > 0 ? this.width/2 : -this.width/2 - range), y:this.y - this.height * 0.65, w:range, h:this.height * 0.45 };
   }
 
-  canActNow() {
-    return this.canAct && this.state !== 'HIT' && this.state !== 'BLOCK' && this.dashFrames <= 0 && this.freezeTimer <= 0;
-  }
+  canActNow() { return this.canAct && this.state !== 'HIT' && this.state !== 'BLOCK' && this.dashFrames <= 0 && this.freezeTimer <= 0; }
 
   startAttack(type, dir) {
     if (!this.canActNow()) return;
@@ -516,19 +706,14 @@ class Fighter {
     if (type === 'lp') atk = this.charData.attacks.lp;
     else if (type === 'hp') atk = this.charData.attacks.hp;
     else if (type === 'sp') {
-      const d = DIR_KEYS[dir || 1];
-      atk = this.charData.attacks['sp_' + d];
+      const key = DIR_KEYS[dir || 1];
+      atk = this.charData.attacks['sp_' + key];
       if (!atk) return;
       this.specialUsed++;
     }
     if (!atk) return;
-    this.attackData = atk;
-    this.attackPhase = 'startup';
-    this.attackPhaseTimer = atk.startup;
-    this.attackHit = false;
-    this.state = 'ATTACK';
-    this.canAct = false;
-    this.totalAttacks++;
+    this.attackData = atk; this.attackPhase = 'startup'; this.attackPhaseTimer = atk.startup; this.attackHit = false;
+    this.state = 'ATTACK'; this.canAct = false; this.totalAttacks++;
     this.animState = type === 'sp' ? 'special' : (type === 'hp' ? 'hp' : 'lp');
     this.animFrameIdx = 0; this.animTick = 0;
   }
@@ -546,36 +731,25 @@ class Fighter {
   applyHit(attackData, attacker) {
     if (this.invincibleFrames > 0) return;
     if (this.blocking || this.state === 'BLOCK') {
-      this.hitStunTimer = attackData.bStun;
-      this.knockbackVx = (attacker.facingRight ? 1 : -1) * attackData.kb * 0.3;
+      this.hitStunTimer = attackData.bStun; this.knockbackVx = (attacker.facingRight ? 1 : -1) * attackData.kb * 0.3;
       this.state = 'BLOCK'; this.animState = 'block';
-      particles.spawn(this.x, this.y - 40, 3, '#ffffff', 1.5, 2);
+      particles.spawn(this.x, this.y - 50, 4, '#ffffff', 1.5, 3);
       return;
     }
     if (this.state === 'HIT') return;
-
     const dmg = attackData.dmg;
-    this.hp -= dmg;
-    this.hitsTaken++;
-    attacker.hitsLanded++;
-    this.hitStunTimer = attackData.hStun;
-    this.knockbackVx = (attacker.facingRight ? 1 : -1) * attackData.kb * 0.5;
-    this.vy = -3;
-    this.state = 'HIT'; this.canAct = false;
-    this.attackData = null; this.attackPhase = '';
-    this.animState = 'hit'; this.grounded = false;
-    this.flashTimer = 3;
-
+    this.hp -= dmg; this.hitsTaken++; attacker.hitsLanded++;
+    this.hitStunTimer = attackData.hStun; this.knockbackVx = (attacker.facingRight ? 1 : -1) * attackData.kb * 0.5;
+    this.vy = -4; this.state = 'HIT'; this.canAct = false;
+    this.attackData = null; this.attackPhase = ''; this.animState = 'hit'; this.grounded = false; this.flashTimer = 4;
     if (attackData.elec) this.electricParalyze = 15;
-    if (attackData.freeze) this.freezeTimer = 30;
+    if (attackData.freeze) this.freezeTimer = 35;
     if (attackData.fire) { this.fireDOT = dmg * 0.15; this.fireDOTTimer = 60; }
-
     comboCount++;
     if (comboCount > maxCombo) { maxCombo = comboCount; if (maxCombo > saveData.playerStats.highestCombo) saveData.playerStats.highestCombo = maxCombo; }
-    hitSparkTimer = 8;
-    screenShake = 4;
-    particles.spawn(this.x, this.y - 40, 8, '#ffff00', 4, 3);
-    particles.spawn(this.x, this.y - 40, 4, attacker.charData.accent, 3, 2);
+    hitSparkTimer = 8; screenShake = 5;
+    particles.spawn(this.x, this.y - 50, 10, '#ffff00', 5, 4);
+    particles.spawn(this.x, this.y - 50, 5, attacker.charData.accent, 3, 3);
   }
 
   update() {
@@ -584,42 +758,21 @@ class Fighter {
     if (this.dashFrames > 0) this.dashFrames--;
     if (this.electricParalyze > 0) this.electricParalyze--;
     if (this.freezeTimer > 0) this.freezeTimer--;
-    if (this.fireDOTTimer > 0) {
-      this.fireDOTTimer--;
-      if (this.fireDOTTimer % 30 === 0) this.hp -= this.fireDOT;
-    }
+    if (this.fireDOTTimer > 0) { this.fireDOTTimer--; if (this.fireDOTTimer % 30 === 0) this.hp -= this.fireDOT; }
 
     this.updateAttack();
 
     if (this.state === 'HIT') {
-      this.hitStunTimer--;
-      this.x += this.knockbackVx;
-      this.knockbackVx *= 0.85;
+      this.hitStunTimer--; this.x += this.knockbackVx; this.knockbackVx *= 0.85;
       if (this.grounded) this.knockbackVx *= 0.8;
-      if (this.hitStunTimer <= 0) {
-        this.state = 'IDLE'; this.canAct = true; this.animState = 'idle'; comboCount = 0;
-      }
+      if (this.hitStunTimer <= 0) { this.state = 'IDLE'; this.canAct = true; this.animState = 'idle'; comboCount = 0; }
     }
     if (this.state === 'BLOCK') {
-      this.hitStunTimer--;
-      this.x += this.knockbackVx;
-      this.knockbackVx *= 0.85;
-      if (this.hitStunTimer <= 0) {
-        this.state = 'IDLE'; this.canAct = true; this.blocking = false; this.animState = 'idle';
-      }
+      this.hitStunTimer--; this.x += this.knockbackVx; this.knockbackVx *= 0.85;
+      if (this.hitStunTimer <= 0) { this.state = 'IDLE'; this.canAct = true; this.blocking = false; this.animState = 'idle'; }
     }
 
-    if (!this.grounded) {
-      this.vy += this.gravity;
-      this.y += this.vy;
-      if (this.y >= GROUND_Y) {
-        this.y = GROUND_Y; this.vy = 0; this.grounded = true;
-        if (this.state === 'HIT') {
-          this.state = 'IDLE'; this.canAct = true; this.animState = 'idle'; comboCount = 0;
-        }
-      }
-    }
-
+    if (!this.grounded) { this.vy += this.gravity; this.y += this.vy; if (this.y >= GROUND_Y) { this.y = GROUND_Y; this.vy = 0; this.grounded = true; if (this.state === 'HIT') { this.state = 'IDLE'; this.canAct = true; this.animState = 'idle'; comboCount = 0; } } }
     this.x = clamp(this.x, LEFT_BOUND, RIGHT_BOUND);
 
     this.animTick++;
@@ -628,324 +781,248 @@ class Fighter {
     if (this.animTick >= speed) { this.animTick = 0; this.animFrameIdx++; }
   }
 
-  // 提取行为向量
   extractBehaviorVector() {
     const total = Math.max(1, this.totalAttacks);
     return [
-      clamp(this.totalAttacks / 120, 0.1, 1),    // 攻击激进程度
-      clamp(this.combosStarted / Math.max(1, this.totalAttacks), 0.1, 1), // 连招倾向
-      clamp(this.dashes / 120, 0.05, 1),          // 闪避率
-      clamp(this.blocks / 120, 0.05, 1),          // 防御频率
-      clamp(this.jumpAttacks / Math.max(1, this.totalAttacks), 0.05, 1), // 跳跃攻击偏好
-      clamp(this.specialUsed / Math.max(1, this.totalAttacks), 0.05, 1)  // 必杀技使用频率
+      clamp(this.totalAttacks / 120, 0.1, 1),
+      clamp(this.combosStarted / Math.max(1, this.totalAttacks), 0.1, 1),
+      clamp(this.dashes / 120, 0.05, 1),
+      clamp(this.blocks / 120, 0.05, 1),
+      clamp(this.jumpAttacks / Math.max(1, this.totalAttacks), 0.05, 1),
+      clamp(this.specialUsed / Math.max(1, this.totalAttacks), 0.05, 1)
     ];
   }
 }
 
-// ---- 渲染 ----
+// ============================================================
+// 渲染函数
+// ============================================================
 function drawFighter(ctx, f) {
   ctx.save();
-  const cx = f.x, cy = f.y;
-
   if (f.invincibleFrames > 0 && f.invincibleFrames % 4 < 2) ctx.globalAlpha = 0.4;
-  if (f.freezeTimer > 0) ctx.globalAlpha = 0.7;
-  if (f.flashTimer > 0 && f.flashTimer % 2 === 0) ctx.globalAlpha = 0.5;
-
-  const data = f.charData;
-  const color = data.color, accent = data.accent;
-  const bodyW = 28, bodyH = 40;
+  if (f.freezeTimer > 0) ctx.globalAlpha = 0.6;
+  if (f.flashTimer > 0 && f.flashTimer % 2 === 0) ctx.globalAlpha = 0.4;
 
   // 阴影
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.beginPath();
-  ctx.ellipse(cx, cy - 2, 18, 5, 0, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.beginPath(); ctx.ellipse(f.x, GROUND_Y - 3, 28, 8, 0, 0, Math.PI * 2); ctx.fill();
 
-  // 身体
-  ctx.fillStyle = color;
-  ctx.fillRect(cx - bodyW/2, cy - 70, bodyW, bodyH);
-
-  // 身体纹理
-  ctx.fillStyle = accent;
-  ctx.globalAlpha = ctx.globalAlpha * 0.3;
-  ctx.fillRect(cx - bodyW/2 + 4, cy - 70, bodyW - 8, bodyH);
-  ctx.globalAlpha = f.invincibleFrames > 0 && f.invincibleFrames % 4 < 2 ? 0.4 : (f.freezeTimer > 0 ? 0.7 : (f.flashTimer > 0 && f.flashTimer % 2 === 0 ? 0.5 : 1));
-
-  // 头部
-  ctx.fillStyle = accent;
-  ctx.beginPath(); ctx.arc(cx, cy - 82, 14, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(cx - 4, cy - 84, 3, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(cx + (f.animState === 'hit' ? 2 : 4), cy - 84, 3, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#000';
-  ctx.beginPath(); ctx.arc(cx - 4, cy - 84, 1.5, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(cx + (f.animState === 'hit' ? 2 : 4), cy - 84, 1.5, 0, Math.PI * 2); ctx.fill();
-
-  // 头带
-  ctx.strokeStyle = accent;
-  ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(cx, cy - 82, 15, -0.3, Math.PI + 0.3); ctx.stroke();
-
-  // 手臂
-  ctx.strokeStyle = color; ctx.lineWidth = 6; ctx.lineCap = 'round';
-  const armWave = f.animState === 'walk' ? Math.sin(f.animTick * 0.5) * 5 : 0;
-  ctx.beginPath(); ctx.moveTo(cx - 8, cy - 55); ctx.lineTo(cx - 14, cy - 35 + armWave); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx + 8, cy - 55); ctx.lineTo(cx + 14, cy - 35 - armWave); ctx.stroke();
-
-  // 拳头
-  ctx.fillStyle = accent;
-  ctx.beginPath(); ctx.arc(cx - 14, cy - 35 + armWave, 4, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(cx + 14, cy - 35 - armWave, 4, 0, Math.PI * 2); ctx.fill();
-
-  // 攻击延伸
-  if (f.animState === 'lp' || f.animState === 'hp' || f.animState === 'special') {
-    const ext = f.attackPhase === 'active' ? 30 : (f.attackPhase === 'startup' ? 15 : 0);
-    const d = f.facingRight ? 1 : -1;
-    ctx.strokeStyle = accent; ctx.lineWidth = 5;
-    ctx.beginPath(); ctx.moveTo(cx + d * 8, cy - 50);
-    ctx.lineTo(cx + d * (8 + ext), cy - 55); ctx.stroke();
-    if (f.attackPhase === 'active') {
-      const atk = f.attackData;
-      let fxColor = accent;
-      if (atk && atk.elec) fxColor = '#ffff00';
-      else if (atk && atk.fire) fxColor = '#ff4400';
-      else if (atk && atk.freeze) fxColor = '#88ddff';
-      ctx.strokeStyle = fxColor; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(cx + d * (8 + ext), cy - 55, 10, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = fxColor; ctx.globalAlpha = 0.3;
-      ctx.beginPath(); ctx.arc(cx + d * (8 + ext), cy - 55, 10, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = f.invincibleFrames > 0 && f.invincibleFrames % 4 < 2 ? 0.4 : (f.freezeTimer > 0 ? 0.7 : (f.flashTimer > 0 && f.flashTimer % 2 === 0 ? 0.5 : 1));
-    }
+  // 绘制各角色
+  switch (f.charData.style) {
+    case 'ninja': drawShadowBlade(ctx, f); break;
+    case 'warrior': drawThunder(ctx, f); break;
+    case 'golem': drawBoulder(ctx, f); break;
+    case 'monk': drawFlameDancer(ctx, f); break;
+    case 'mage': drawFrostWhisper(ctx, f); break;
+    default: drawShadowBlade(ctx, f);
   }
-
-  // 腿
-  ctx.strokeStyle = color; ctx.lineWidth = 6;
-  const legWave = f.animState === 'walk' ? Math.sin(f.animTick * 0.5 + Math.PI) * 5 : 0;
-  ctx.beginPath(); ctx.moveTo(cx - 5, cy - 30); ctx.lineTo(cx - 8 + legWave, cy - 5); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx + 5, cy - 30); ctx.lineTo(cx + 8 - legWave, cy - 5); ctx.stroke();
-
-  // 脚
-  ctx.fillStyle = accent;
-  ctx.fillRect(cx - 12 + legWave, cy - 5, 8, 4);
-  ctx.fillRect(cx + 4 - legWave, cy - 5, 8, 4);
 
   // 防御护盾
   if (f.blocking || f.state === 'BLOCK') {
-    ctx.strokeStyle = '#4488ff'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(cx, cy - 50, 30, -Math.PI * 0.6, Math.PI * 0.6); ctx.stroke();
+    ctx.strokeStyle = '#4488ff'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(f.x, f.y - 65, 45, -Math.PI * 0.7, Math.PI * 0.7); ctx.stroke();
+    ctx.fillStyle = 'rgba(68,136,255,0.15)'; ctx.fill();
   }
 
-  // 麻痹效果
+  // 麻痹特效
   if (f.electricParalyze > 0) {
-    ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 1.5;
-    for (let i = 0; i < 3; i++) {
-      ctx.beginPath();
-      ctx.moveTo(cx - 18 + rand(0, 36), cy - 75 + rand(0, 70));
-      ctx.lineTo(cx - 18 + rand(0, 36), cy - 75 + rand(0, 70));
-      ctx.stroke();
+    ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 2;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath(); ctx.moveTo(f.x - 25 + rand(0,50), f.y - 110 + rand(0,90)); ctx.lineTo(f.x - 25 + rand(0,50), f.y - 110 + rand(0,90)); ctx.stroke();
     }
   }
 
   // 火焰DOT
   if (f.fireDOTTimer > 0) {
-    ctx.fillStyle = '#ff4400'; ctx.globalAlpha = 0.4;
-    ctx.beginPath(); ctx.arc(cx, cy - 30, 8 + rand(0, 4), 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = f.invincibleFrames > 0 && f.invincibleFrames % 4 < 2 ? 0.4 : (f.freezeTimer > 0 ? 0.7 : (f.flashTimer > 0 && f.flashTimer % 2 === 0 ? 0.5 : 1));
+    ctx.fillStyle = '#ff4400'; ctx.globalAlpha = (ctx.globalAlpha || 1) * 0.5;
+    ctx.beginPath(); ctx.arc(f.x + rand(-10,10), f.y - 50 + rand(-20,10), rand(5,12), 0, Math.PI * 2); ctx.fill();
   }
 
   ctx.restore();
 }
 
-function drawHUD(ctx) {
-  if (gameState !== STATE.FIGHTING && gameState !== STATE.TRAINING) return;
-  if (!p1 || !p2) return;
-
-  // P1 HP条
-  const barW = 170, barH = 18, barY = 12;
-  ctx.fillStyle = '#111';
-  ctx.fillRect(8, barY, barW, barH);
-  const p1hp = clamp(p1.hp / p1.maxHp, 0, 1);
-  const hpColor1 = p1hp > 0.5 ? '#44ff44' : (p1hp > 0.25 ? '#ffaa00' : '#ff4444');
-  ctx.fillStyle = hpColor1;
-  ctx.fillRect(8, barY, barW * p1hp, barH);
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
-  ctx.strokeRect(8, barY, barW, barH);
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
-  ctx.fillText(p1.charData.name + '  ' + Math.max(0, Math.ceil(p1.hp)), 12, barY - 3);
-
-  // P2 HP条
-  ctx.fillStyle = '#111';
-  ctx.fillRect(CANVAS_W - 8 - barW, barY, barW, barH);
-  const p2hp = clamp(p2.hp / p2.maxHp, 0, 1);
-  const hpColor2 = p2hp > 0.5 ? '#44ff44' : (p2hp > 0.25 ? '#ffaa00' : '#ff4444');
-  ctx.fillStyle = hpColor2;
-  ctx.fillRect(CANVAS_W - 8 - barW * p2hp, barY, barW * p2hp, barH);
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
-  ctx.strokeRect(CANVAS_W - 8 - barW, barY, barW, barH);
-  ctx.fillStyle = '#fff'; ctx.textAlign = 'right';
-  ctx.fillText(p2.charData.name + '  ' + Math.max(0, Math.ceil(p2.hp)), CANVAS_W - 12, barY - 3);
-
-  // 计时器
-  const sec = Math.ceil(roundTimer / 60);
-  ctx.fillStyle = sec <= 10 ? '#ff4444' : '#fff';
-  ctx.font = 'bold 26px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText(sec, CANVAS_W / 2, 42);
-
-  // 连击
-  if (comboCount > 1) {
-    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 22px sans-serif';
-    ctx.fillText(comboCount + ' HITS', CANVAS_W / 2, 68);
-  }
-
-  // 比分
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif';
-  ctx.fillText('P1 ' + p1Wins + ' - ' + p2Wins + ' P2', CANVAS_W / 2, 88);
-}
-
 function drawBackground(ctx) {
+  // 天空渐变
   const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
-  grad.addColorStop(0, '#0d0d1a');
-  grad.addColorStop(0.4, '#1a1a3e');
-  grad.addColorStop(0.7, '#16213e');
-  grad.addColorStop(1, '#0f3460');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  grad.addColorStop(0, '#050510'); grad.addColorStop(0.5, '#151530'); grad.addColorStop(1, '#0a2040');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-  // 远处建筑
-  ctx.fillStyle = 'rgba(255,255,255,0.03)';
-  for (let i = 0; i < 8; i++) {
-    const bx = i * 50 + 10, bh = 80 + rand(0, 120);
-    ctx.fillRect(bx, GROUND_Y - bh, 35, bh);
+  // 月亮
+  ctx.fillStyle = 'rgba(255,240,200,0.15)';
+  ctx.beginPath(); ctx.arc(CANVAS_W - 150, 100, 50, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,240,200,0.08)';
+  ctx.beginPath(); ctx.arc(CANVAS_W - 150, 100, 70, 0, Math.PI * 2); ctx.fill();
+
+  // 远山
+  ctx.fillStyle = '#0a0a18';
+  ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(150, GROUND_Y - 120); ctx.lineTo(350, GROUND_Y - 80);
+  ctx.lineTo(550, GROUND_Y - 150); ctx.lineTo(750, GROUND_Y - 90); ctx.lineTo(950, GROUND_Y - 130);
+  ctx.lineTo(1150, GROUND_Y - 70); ctx.lineTo(CANVAS_W, GROUND_Y - 100); ctx.lineTo(CANVAS_W, GROUND_Y); ctx.closePath(); ctx.fill();
+
+  // 远景建筑剪影
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  for (let i = 0; i < 12; i++) {
+    const bx = i * 110 + 30, bh = 60 + rand(0, 150);
+    ctx.fillRect(bx, GROUND_Y - bh, 50, bh);
+    // 塔尖
+    ctx.beginPath(); ctx.moveTo(bx - 10, GROUND_Y - bh); ctx.lineTo(bx + 25, GROUND_Y - bh - 30); ctx.lineTo(bx + 60, GROUND_Y - bh); ctx.closePath(); ctx.fill();
   }
 
   // 地面
-  ctx.fillStyle = '#1a1a1a';
-  ctx.fillRect(0, GROUND_Y, CANVAS_W, CANVAS_H - GROUND_Y);
-  ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 3;
+  ctx.fillStyle = '#141420'; ctx.fillRect(0, GROUND_Y, CANVAS_W, CANVAS_H - GROUND_Y);
+  ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 4;
   ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(CANVAS_W, GROUND_Y); ctx.stroke();
-  ctx.strokeStyle = '#444'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(0, GROUND_Y + 2); ctx.lineTo(CANVAS_W, GROUND_Y + 2); ctx.stroke();
+  ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, GROUND_Y + 3); ctx.lineTo(CANVAS_W, GROUND_Y + 3); ctx.stroke();
 
-  // 装饰线
-  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-  for (let i = 0; i < CANVAS_W; i += 40) {
-    ctx.beginPath(); ctx.moveTo(i, GROUND_Y); ctx.lineTo(i, GROUND_Y + 8); ctx.stroke();
+  // 地面砖石
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 2;
+  for (let i = 0; i < CANVAS_W; i += 80) {
+    ctx.beginPath(); ctx.moveTo(i, GROUND_Y); ctx.lineTo(i, GROUND_Y + 12); ctx.stroke();
   }
+}
+
+function drawHUD(ctx) {
+  if ((gameState !== STATE.FIGHTING && gameState !== STATE.TRAINING) || !p1 || !p2) return;
+  const barW = 380, barH = 22, barY = 18;
+
+  // P1 HP
+  ctx.fillStyle = '#111'; ctx.fillRect(30, barY, barW, barH);
+  const p1hp = clamp(p1.hp / p1.maxHp, 0, 1);
+  const hpColor1 = p1hp > 0.5 ? '#44ff44' : (p1hp > 0.25 ? '#ffaa00' : '#ff4444');
+  ctx.fillStyle = hpColor1; ctx.fillRect(30, barY, barW * p1hp, barH);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(30, barY, barW, barH);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText(p1.charData.name + '  ' + Math.max(0, Math.ceil(p1.hp)), 34, barY - 4);
+
+  // P2 HP
+  ctx.fillStyle = '#111'; ctx.fillRect(CANVAS_W - 30 - barW, barY, barW, barH);
+  const p2hp = clamp(p2.hp / p2.maxHp, 0, 1);
+  const hpColor2 = p2hp > 0.5 ? '#44ff44' : (p2hp > 0.25 ? '#ffaa00' : '#ff4444');
+  ctx.fillStyle = hpColor2; ctx.fillRect(CANVAS_W - 30 - barW * p2hp, barY, barW * p2hp, barH);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(CANVAS_W - 30 - barW, barY, barW, barH);
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'right';
+  ctx.fillText(p2.charData.name + '  ' + Math.max(0, Math.ceil(p2.hp)), CANVAS_W - 34, barY - 4);
+
+  // 计时器
+  const sec = Math.ceil(roundTimer / 60);
+  ctx.fillStyle = sec <= 10 ? '#ff4444' : '#fff'; ctx.font = 'bold 36px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(sec, CANVAS_W / 2, 50);
+
+  // 连击
+  if (comboCount > 1) { ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 26px sans-serif'; ctx.fillText(comboCount + ' HITS', CANVAS_W / 2, 85); }
+
+  // 比分
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 18px sans-serif';
+  ctx.fillText('P1 ' + p1Wins + ' - ' + p2Wins + ' P2', CANVAS_W / 2, 112);
 }
 
 function drawMenu(ctx) {
   drawBackground(ctx);
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 36px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('影武传说', CANVAS_W / 2, 140);
-  ctx.fillStyle = '#ffaa00'; ctx.font = '14px sans-serif';
-  ctx.fillText('PHANTOM BRAWL', CANVAS_W / 2, 165);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 56px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('影武传说', CANVAS_W / 2, 160);
+  ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 22px sans-serif';
+  ctx.fillText('PHANTOM BRAWL', CANVAS_W / 2, 200);
 
   MENU_ITEMS.forEach((item, i) => {
-    const y = 260 + i * 60;
+    const y = 300 + i * 75;
     ctx.fillStyle = i === menuSelection ? '#ffaa00' : '#666';
-    ctx.font = 'bold 20px sans-serif';
+    ctx.font = 'bold 28px sans-serif';
     ctx.fillText(item, CANVAS_W / 2, y);
     if (i === menuSelection) {
-      ctx.fillText('▶', CANVAS_W / 2 - 110, y);
-      ctx.fillText('◀', CANVAS_W / 2 + 110, y);
+      ctx.fillText('▶', CANVAS_W / 2 - 180, y);
+      ctx.fillText('◀', CANVAS_W / 2 + 180, y);
     }
   });
 
-  ctx.fillStyle = '#ffaa00'; ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('金币: ' + saveData.gold + '  |  战绩: ' + saveData.playerStats.wins + '胜/' + (saveData.playerStats.totalMatches - saveData.playerStats.wins) + '败', CANVAS_W / 2, 620);
-  ctx.fillText('最高连击: ' + saveData.playerStats.highestCombo, CANVAS_W / 2, 640);
+  ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 18px sans-serif';
+  ctx.fillText('金币: ' + saveData.gold + '  |  战绩: ' + saveData.playerStats.wins + '胜 / ' + (saveData.playerStats.totalMatches - saveData.playerStats.wins) + '败', CANVAS_W / 2, 560);
+  ctx.fillText('最高连击: ' + saveData.playerStats.highestCombo, CANVAS_W / 2, 590);
 
-  // 碎片进度
   if (!saveData.unlockedCharacters.includes('flame_dancer')) {
-    ctx.fillStyle = '#e84020'; ctx.font = '11px sans-serif';
-    ctx.fillText('焰舞碎片: ' + (saveData.fragments.flame_dancer || 0) + '/20', CANVAS_W / 2, 665);
+    ctx.fillStyle = '#e84020'; ctx.font = '14px sans-serif';
+    ctx.fillText('焰舞碎片: ' + (saveData.fragments.flame_dancer || 0) + '/20', CANVAS_W / 2, 620);
   }
   if (!saveData.unlockedCharacters.includes('frost_whisper')) {
-    ctx.fillStyle = '#40c0e8'; ctx.font = '11px sans-serif';
-    ctx.fillText('霜语碎片: ' + (saveData.fragments.frost_whisper || 0) + '/20', CANVAS_W / 2, 685);
+    ctx.fillStyle = '#40c0e8'; ctx.font = '14px sans-serif';
+    ctx.fillText('霜语碎片: ' + (saveData.fragments.frost_whisper || 0) + '/20', CANVAS_W / 2, 645);
   }
 
-  ctx.fillStyle = '#555'; ctx.font = '11px sans-serif';
-  ctx.fillText('摇杆移动 | 轻拳/重拳/必杀 攻击 | 快速下划防御 | 急划闪避', CANVAS_W / 2, 720);
-  ctx.fillText('键盘: WASD移动 J轻拳 K重拳 U必杀 I防御 O闪避', CANVAS_W / 2, 740);
+  ctx.fillStyle = '#666'; ctx.font = '14px sans-serif';
+  ctx.fillText('键盘: WASD移动 | J轻拳 K重拳 U必杀 I防御 O闪避', CANVAS_W / 2, 690);
 }
 
 function drawCharSelect(ctx) {
   drawBackground(ctx);
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 24px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('选择角色', CANVAS_W / 2, 50);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 42px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('选择角色', CANVAS_W / 2, 70);
 
   const chars = unlockedCharIds;
-  const labels = fightMode === 'pvp' ? ['P1选择 (←→切换)', 'P2选择 (↑↓切换)'] : ['选择角色 (←→切换)', ''];
+  const labels = fightMode === 'pvp' ? ['P1选择 (←→)', 'P2选择 (↑↓)'] : ['选择角色 (←→)', ''];
 
   for (let p = 0; p < (fightMode === 'pvp' ? 2 : 1); p++) {
-    const baseY = 100 + p * 300;
-    ctx.fillStyle = '#ffaa00'; ctx.font = '14px sans-serif';
-    ctx.fillText(labels[p], CANVAS_W / 2, baseY - 10);
+    const baseY = 130 + p * 280;
+    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 20px sans-serif';
+    ctx.fillText(labels[p], CANVAS_W / 2, baseY - 15);
 
     chars.forEach((cid, i) => {
       const c = CHARACTERS[cid];
-      const col = i % 3, row = Math.floor(i / 3);
-      const bx = 55 + col * 100, by = baseY + row * 110;
+      const col = i % 5, row = Math.floor(i / 5);
+      const bx = 130 + col * 210, by = baseY + row * 130;
       const selected = (p === 0 ? charSelectP1 : charSelectP2) === i;
 
-      ctx.fillStyle = selected ? 'rgba(255,170,0,0.2)' : 'rgba(255,255,255,0.03)';
+      ctx.fillStyle = selected ? 'rgba(255,170,0,0.2)' : 'rgba(255,255,255,0.04)';
       ctx.strokeStyle = selected ? '#ffaa00' : '#444';
-      ctx.lineWidth = selected ? 3 : 1;
-      ctx.fillRect(bx, by, 85, 95);
-      ctx.strokeRect(bx, by, 85, 95);
+      ctx.lineWidth = selected ? 4 : 1;
+      ctx.fillRect(bx, by, 180, 110); ctx.strokeRect(bx, by, 180, 110);
 
-      // 迷你角色
-      ctx.fillStyle = c.color;
-      ctx.fillRect(bx + 28, by + 22, 28, 35);
-      ctx.fillStyle = c.accent;
-      ctx.beginPath(); ctx.arc(bx + 42, by + 18, 10, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#000';
-      ctx.beginPath(); ctx.arc(bx + 39, by + 16, 2, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(bx + 45, by + 16, 2, 0, Math.PI * 2); ctx.fill();
+      // 角色预览
+      const mini = new Fighter(cid, bx + 90, true, true);
+      mini.y = by + 60; mini.animState = 'idle';
+      ctx.save(); ctx.translate(0, 0); drawFighter(ctx, mini); ctx.restore();
 
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif';
-      ctx.fillText(c.name, bx + 42, by + 78);
-      ctx.fillStyle = '#888'; ctx.font = '9px sans-serif';
-      ctx.fillText('速度 ' + c.walkSpeed + ' | ' + c.desc, bx + 42, by + 90);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 18px sans-serif';
+      ctx.fillText(c.name, bx + 90, by + 95);
+      ctx.fillStyle = '#888'; ctx.font = '12px sans-serif';
+      ctx.fillText('速度 ' + c.walkSpeed, bx + 90, by + 108);
     });
   }
 
-  ctx.fillStyle = '#aaa'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('轻拳确认 | 重拳返回', CANVAS_W / 2, CANVAS_H - 30);
+  ctx.fillStyle = '#aaa'; ctx.font = '16px sans-serif';
+  ctx.fillText('轻拳确认 | 重拳返回', CANVAS_W / 2, CANVAS_H - 25);
 }
 
 function drawShadowDojo(ctx) {
   drawBackground(ctx);
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 24px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('影武道场', CANVAS_W / 2, 50);
-  ctx.fillStyle = '#888'; ctx.font = '13px sans-serif';
-  ctx.fillText('分身管理 · 按任意攻击键返回', CANVAS_W / 2, 75);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 42px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('影武道场', CANVAS_W / 2, 70);
+  ctx.fillStyle = '#888'; ctx.font = '18px sans-serif';
+  ctx.fillText('分身管理 · 按任意攻击键返回', CANVAS_W / 2, 105);
 
   if (saveData.shadowAIs.length === 0) {
-    ctx.fillStyle = '#666'; ctx.font = '16px sans-serif';
-    ctx.fillText('暂无分身', CANVAS_W / 2, 250);
-    ctx.fillText('完成PVE对战可自动创建分身', CANVAS_W / 2, 280);
+    ctx.fillStyle = '#666'; ctx.font = '22px sans-serif';
+    ctx.fillText('暂无分身', CANVAS_W / 2, 300);
+    ctx.fillText('完成PVE对战可自动创建分身', CANVAS_W / 2, 340);
   } else {
     saveData.shadowAIs.forEach((ai, i) => {
-      const y = 120 + i * 75;
-      ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fillRect(15, y, CANVAS_W - 30, 65);
-      ctx.strokeStyle = '#333'; ctx.strokeRect(15, y, CANVAS_W - 30, 65);
+      const y = 150 + i * 90;
+      ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fillRect(40, y, CANVAS_W - 80, 75);
+      ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.strokeRect(40, y, CANVAS_W - 80, 75);
       const c = CHARACTERS[ai.characterId];
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'left';
-      ctx.fillText(ai.name, 30, y + 22);
-      ctx.fillStyle = c ? c.color : '#888'; ctx.font = '11px sans-serif';
-      ctx.fillText(c ? c.name : '?', 30, y + 40);
-      ctx.fillStyle = '#aaa'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
-      ctx.fillText(ai.wins + '胜 ' + ai.losses + '败', CANVAS_W - 30, y + 22);
-      // 行为向量条
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText(ai.name, 65, y + 28);
+      ctx.fillStyle = c ? c.color : '#888'; ctx.font = '14px sans-serif';
+      ctx.fillText(c ? c.name : '?', 65, y + 50);
+      ctx.fillStyle = '#aaa'; ctx.font = '14px sans-serif'; ctx.textAlign = 'right';
+      ctx.fillText(ai.wins + '胜 ' + ai.losses + '败', CANVAS_W - 65, y + 28);
+
       const labels = ['攻击','连招','闪避','防御','跳跃','必杀'];
       labels.forEach((l, j) => {
-        const bx = 30 + j * 58, bh = 6;
-        ctx.fillStyle = '#333'; ctx.fillRect(bx, y + 50, 52, bh);
-        ctx.fillStyle = '#ffaa00'; ctx.fillRect(bx, y + 50, 52 * ai.behaviorVector[j], bh);
-        ctx.fillStyle = '#888'; ctx.font = '7px sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText(l, bx + 26, y + 48);
+        const bx = 230 + j * 140, bh = 10;
+        ctx.fillStyle = '#333'; ctx.fillRect(bx, y + 55, 120, bh);
+        ctx.fillStyle = '#ffaa00'; ctx.fillRect(bx, y + 55, 120 * ai.behaviorVector[j], bh);
+        ctx.fillStyle = '#888'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(l + ' ' + (ai.behaviorVector[j]*100).toFixed(0) + '%', bx + 60, y + 52);
       });
     });
   }
@@ -953,60 +1030,54 @@ function drawShadowDojo(ctx) {
 
 function drawAutoBattle(ctx) {
   drawBackground(ctx);
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 24px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('离线斗技场', CANVAS_W / 2, 50);
-  ctx.fillStyle = '#888'; ctx.font = '13px sans-serif';
-  ctx.fillText('选择两个分身自动对战', CANVAS_W / 2, 75);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 42px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('离线斗技场', CANVAS_W / 2, 70);
+  ctx.fillStyle = '#888'; ctx.font = '18px sans-serif';
+  ctx.fillText('选择两个分身自动对战', CANVAS_W / 2, 105);
 
   if (saveData.shadowAIs.length < 2) {
-    ctx.fillStyle = '#666'; ctx.font = '16px sans-serif';
-    ctx.fillText('至少需要2个分身', CANVAS_W / 2, 250);
-    ctx.fillText('去PVE对战收集数据创建分身', CANVAS_W / 2, 280);
+    ctx.fillStyle = '#666'; ctx.font = '22px sans-serif';
+    ctx.fillText('至少需要2个分身', CANVAS_W / 2, 300);
+    ctx.fillText('去PVE对战收集数据创建分身', CANVAS_W / 2, 340);
   } else {
-    ctx.fillStyle = '#ffaa00'; ctx.font = '14px sans-serif';
-    ctx.fillText('P1: ' + (saveData.shadowAIs[autoBattleSel1] ? saveData.shadowAIs[autoBattleSel1].name : ''), CANVAS_W / 2, 120);
-    ctx.fillText('VS', CANVAS_W / 2, 150);
-    ctx.fillText('P2: ' + (saveData.shadowAIs[autoBattleSel2] ? saveData.shadowAIs[autoBattleSel2].name : ''), CANVAS_W / 2, 180);
+    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 20px sans-serif';
+    ctx.fillText('P1: ' + saveData.shadowAIs[autoBattleSel1].name, CANVAS_W / 2, 160);
+    ctx.fillText('VS', CANVAS_W / 2, 200);
+    ctx.fillText('P2: ' + saveData.shadowAIs[autoBattleSel2].name, CANVAS_W / 2, 240);
 
     saveData.shadowAIs.forEach((ai, i) => {
-      const y = 220 + i * 45;
+      const y = 300 + i * 45;
       const c = CHARACTERS[ai.characterId];
       ctx.fillStyle = (i === autoBattleSel1 || i === autoBattleSel2) ? '#ffaa00' : '#666';
-      ctx.font = '13px sans-serif';
+      ctx.font = '16px sans-serif';
       const marker = i === autoBattleSel1 ? 'P1 ' : (i === autoBattleSel2 ? 'P2 ' : '');
       ctx.fillText(marker + ai.name + ' (' + (c ? c.name : '?') + ') ' + ai.wins + 'W/' + ai.losses + 'L', CANVAS_W / 2, y);
     });
 
-    ctx.fillStyle = '#ffaa00'; ctx.font = '15px sans-serif';
-    ctx.fillText('轻拳开始对战 | 重拳返回', CANVAS_W / 2, CANVAS_H - 30);
+    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 18px sans-serif';
+    ctx.fillText('轻拳开始对战 | 重拳返回', CANVAS_W / 2, CANVAS_H - 25);
   }
 }
 
-// ---- AI 控制器 ----
+// ============================================================
+// AI 控制器
+// ============================================================
 class AIController {
   constructor(difficulty, behaviorVector) {
     this.difficulty = difficulty;
     this.bv = behaviorVector || [0.5, 0.3, 0.2, 0.3, 0.2, 0.3];
     this.decisionTimer = 0;
     this.reactionDelay = difficulty === 'easy' ? 15 : (difficulty === 'normal' ? 8 : 3);
-    this.strategy = 'neutral';
-    this.stuckTimer = 0;
-    this.lastX = 0;
+    this.strategy = 'neutral'; this.stuckTimer = 0; this.lastX = 0;
   }
-
   update(self, opponent) {
-    this.decisionTimer++;
-    if (this.decisionTimer < this.reactionDelay) return null;
+    this.decisionTimer++; if (this.decisionTimer < this.reactionDelay) return null;
     this.decisionTimer = 0;
-
-    // 检测卡住
-    if (Math.abs(self.x - this.lastX) < 0.5) this.stuckTimer++;
-    else this.stuckTimer = 0;
+    if (Math.abs(self.x - this.lastX) < 0.5) this.stuckTimer++; else this.stuckTimer = 0;
     this.lastX = self.x;
 
     const dist = Math.abs(self.x - opponent.x);
-    const hpR = self.hp / self.maxHp;
-    const oppHpR = opponent.hp / opponent.maxHp;
+    const hpR = self.hp / self.maxHp, oppHpR = opponent.hp / opponent.maxHp;
     const bv = this.bv;
 
     if (hpR > 0.7 && oppHpR < 0.3) this.strategy = 'aggressive';
@@ -1014,69 +1085,46 @@ class AIController {
     else this.strategy = 'neutral';
 
     const action = {};
+    const idealDist = this.strategy === 'aggressive' ? 55 : (this.strategy === 'defensive' ? 130 : 80);
+    if (this.stuckTimer > 30) { action.move = Math.random() > 0.5 ? 1 : -1; this.stuckTimer = 0; }
+    else if (dist > idealDist + 25) action.move = self.x < opponent.x ? 1 : -1;
+    else if (dist < idealDist - 15) action.move = self.x < opponent.x ? -1 : 1;
 
-    // 移动
-    const idealDist = this.strategy === 'aggressive' ? 40 : (this.strategy === 'defensive' ? 100 : 60);
-    if (this.stuckTimer > 30) {
-      action.move = Math.random() > 0.5 ? 1 : -1;
-      this.stuckTimer = 0;
-    } else if (dist > idealDist + 20) {
-      action.move = self.x < opponent.x ? 1 : -1;
-    } else if (dist < idealDist - 10) {
-      action.move = self.x < opponent.x ? -1 : 1;
-    }
-
-    // 攻击
     const roll = Math.random();
-    if (this.strategy === 'aggressive') {
-      if (roll < bv[0] * 0.8 && dist < 80) {
-        if (roll < 0.2 && bv[5] > 0.3) action.attack = 'sp';
-        else if (roll < 0.5) action.attack = 'hp';
-        else action.attack = 'lp';
-      }
-    } else if (this.strategy === 'neutral') {
-      if (roll < bv[0] * 0.5 && dist < 70) {
-        if (roll < 0.12 && bv[5] > 0.3) action.attack = 'sp';
-        else if (roll < 0.35) action.attack = 'hp';
-        else action.attack = 'lp';
-      }
-    } else {
-      if (roll < bv[0] * 0.25 && dist < 60) action.attack = 'lp';
-    }
+    if (this.strategy === 'aggressive') { if (roll < bv[0] * 0.8 && dist < 100) { if (roll < 0.2 && bv[5] > 0.3) action.attack = 'sp'; else if (roll < 0.5) action.attack = 'hp'; else action.attack = 'lp'; } }
+    else if (this.strategy === 'neutral') { if (roll < bv[0] * 0.5 && dist < 90) { if (roll < 0.12 && bv[5] > 0.3) action.attack = 'sp'; else if (roll < 0.35) action.attack = 'hp'; else action.attack = 'lp'; } }
+    else { if (roll < bv[0] * 0.25 && dist < 80) action.attack = 'lp'; }
 
-    // 防御
-    if (opponent.attackData && opponent.attackPhase === 'active') {
-      if (Math.random() < bv[3] * (this.strategy === 'defensive' ? 1.5 : 1)) {
-        action.block = true; action.attack = null;
-      }
-    }
-
-    // 闪避
+    if (opponent.attackData && opponent.attackPhase === 'active') { if (Math.random() < bv[3] * (this.strategy === 'defensive' ? 1.5 : 1)) { action.block = true; action.attack = null; } }
     if (Math.random() < bv[2] * 0.08) { action.dash = true; action.attack = null; }
-
-    // 跳跃攻击
-    if (self.grounded && Math.random() < bv[4] * 0.06 && dist < 80) {
-      action.jump = true;
-      if (!action.attack) action.attack = Math.random() < 0.5 ? 'hp' : 'lp';
-    }
-
-    if (action.attack === 'sp') {
-      action.spDir = randInt(1, 8);
-    }
-
+    if (self.grounded && Math.random() < bv[4] * 0.06 && dist < 100) { action.jump = true; if (!action.attack) action.attack = Math.random() < 0.5 ? 'hp' : 'lp'; }
+    if (action.attack === 'sp') action.spDir = randInt(1, 8);
     return action;
   }
 }
 
-// ---- 游戏主逻辑 ----
-let p1 = null, p2 = null;
-let ai = null;
+// ============================================================
+// 游戏主逻辑
+// ============================================================
+const STATE = { MENU:0, CHAR_SELECT:1, FIGHTING:2, TRAINING:3, SHADOW_DOJO:4, AUTO_BATTLE:5 };
+let gameState = STATE.MENU;
+let stateSubState = null, stateTimer = 0;
+let menuSelection = 0;
+const MENU_ITEMS = ['征战之路 PVE', '双人对战', '训练模式', '影武道场', '离线斗技场'];
+let charSelectP1 = 0, charSelectP2 = 0;
+let unlockedCharIds = [];
+let fightMode = 'pve';
+let roundNumber = 0, p1Wins = 0, p2Wins = 0;
+let roundTimer = 0, comboCount = 0, maxCombo = 0;
+let hitSparkTimer = 0, screenShake = 0;
+let roundMessages = [], notificationText = '', notificationTimer = 0;
+let unlockMsg = '', unlockMsgTimer = 0;
+let p1 = null, p2 = null, ai = null;
 let autoBattleSel1 = 0, autoBattleSel2 = 1;
 let autoBattleAI1 = null, autoBattleAI2 = null;
 
 function initFight(mode) {
-  fightMode = mode;
-  roundNumber = 0; p1Wins = 0; p2Wins = 0;
+  fightMode = mode; roundNumber = 0; p1Wins = 0; p2Wins = 0;
   unlockedCharIds = saveData.unlockedCharacters.filter(c => CHARACTERS[c]);
   if (unlockedCharIds.length === 0) unlockedCharIds = ['shadow_blade'];
 
@@ -1084,94 +1132,56 @@ function initFight(mode) {
     const p1Char = unlockedCharIds[charSelectP1] || 'shadow_blade';
     const aiChars = unlockedCharIds.filter(c => c !== p1Char);
     const p2Char = aiChars.length > 0 ? aiChars[randInt(0, aiChars.length - 1)] : 'shadow_blade';
-    p1 = new Fighter(p1Char, 100, true, true);
-    p2 = new Fighter(p2Char, 290, false, false);
+    p1 = new Fighter(p1Char, 300, true, true);
+    p2 = new Fighter(p2Char, 980, false, false);
     ai = new AIController('normal');
-    // 初始化角色使用统计
     if (!saveData.playerStats.charUsage) saveData.playerStats.charUsage = {};
     if (!saveData.playerStats.charUsage[p1Char]) saveData.playerStats.charUsage[p1Char] = { matches:0, wins:0 };
     saveData.playerStats.charUsage[p1Char].matches++;
   } else if (mode === 'pvp') {
-    p1 = new Fighter(unlockedCharIds[charSelectP1] || 'shadow_blade', 100, true, true);
-    p2 = new Fighter(unlockedCharIds[charSelectP2] || 'shadow_blade', 290, false, false);
+    p1 = new Fighter(unlockedCharIds[charSelectP1] || 'shadow_blade', 300, true, true);
+    p2 = new Fighter(unlockedCharIds[charSelectP2] || 'shadow_blade', 980, false, false);
     ai = null;
   } else if (mode === 'training') {
-    p1 = new Fighter(unlockedCharIds[charSelectP1] || 'shadow_blade', 100, true, true);
-    p2 = new Fighter('shadow_blade', 290, false, false);
-    p2.hp = 99999;
+    p1 = new Fighter(unlockedCharIds[charSelectP1] || 'shadow_blade', 300, true, true);
+    p2 = new Fighter('shadow_blade', 980, false, false); p2.hp = 99999;
     ai = null;
   } else if (mode === 'auto') {
     if (saveData.shadowAIs.length < 2) return;
-    const ai1 = saveData.shadowAIs[autoBattleSel1];
-    const ai2 = saveData.shadowAIs[autoBattleSel2];
+    const ai1 = saveData.shadowAIs[autoBattleSel1], ai2 = saveData.shadowAIs[autoBattleSel2];
     if (!ai1 || !ai2) return;
-    p1 = new Fighter(ai1.characterId, 100, true, true);
-    p2 = new Fighter(ai2.characterId, 290, false, false);
+    p1 = new Fighter(ai1.characterId, 300, true, true);
+    p2 = new Fighter(ai2.characterId, 980, false, false);
     autoBattleAI1 = new AIController('hard', ai1.behaviorVector);
     autoBattleAI2 = new AIController('hard', ai2.behaviorVector);
     ai = null;
   }
 
-  roundTimer = ROUND_DURATION;
-  comboCount = 0; maxCombo = 0;
+  roundTimer = ROUND_DURATION; comboCount = 0; maxCombo = 0;
   gameState = mode === 'training' ? STATE.TRAINING : STATE.FIGHTING;
-  stateSubState = 'ROUND_INTRO';
-  stateTimer = 90;
-  roundMessages = [];
+  stateSubState = 'ROUND_INTRO'; stateTimer = 90; roundMessages = [];
 }
 
 function startRound() {
-  if (p1) { p1.x = 100; p1.y = GROUND_Y; p1.hp = MAX_HP; p1.vx = 0; p1.vy = 0; p1.state = 'IDLE'; p1.canAct = true; p1.attackData = null; p1.animState = 'idle'; p1.blocking = false; }
-  if (p2) { p2.x = 290; p2.y = GROUND_Y; p2.hp = fightMode === 'training' ? 99999 : MAX_HP; p2.vx = 0; p2.vy = 0; p2.state = 'IDLE'; p2.canAct = true; p2.attackData = null; p2.animState = 'idle'; p2.blocking = false; }
-  roundTimer = ROUND_DURATION;
-  comboCount = 0;
-  stateSubState = 'FIGHT';
+  if (p1) { p1.x = 300; p1.y = GROUND_Y; p1.hp = MAX_HP; p1.vx = 0; p1.vy = 0; p1.state = 'IDLE'; p1.canAct = true; p1.attackData = null; p1.animState = 'idle'; p1.blocking = false; }
+  if (p2) { p2.x = 980; p2.y = GROUND_Y; p2.hp = fightMode === 'training' ? 99999 : MAX_HP; p2.vx = 0; p2.vy = 0; p2.state = 'IDLE'; p2.canAct = true; p2.attackData = null; p2.animState = 'idle'; p2.blocking = false; }
+  roundTimer = ROUND_DURATION; comboCount = 0; stateSubState = 'FIGHT';
 }
 
 function handlePlayerInput(fighter, isP1) {
   if (!fighter || !fighter.canActNow()) return;
   const dir = input.currentDir;
+  if (dir === 1 || dir === 2 || dir === 8) { fighter.x += fighter.walkSpeed; fighter.facingRight = true; if (fighter.grounded) fighter.animState = 'walk'; }
+  else if (dir === 4 || dir === 5 || dir === 6) { fighter.x -= fighter.walkSpeed; fighter.facingRight = false; if (fighter.grounded) fighter.animState = 'walk'; }
+  else if (fighter.grounded) fighter.animState = 'idle';
 
-  // 移动
-  if (dir === 1 || dir === 2 || dir === 8) {
-    fighter.x += fighter.walkSpeed;
-    fighter.facingRight = true;
-    if (fighter.grounded) fighter.animState = 'walk';
-  } else if (dir === 4 || dir === 5 || dir === 6) {
-    fighter.x -= fighter.walkSpeed;
-    fighter.facingRight = false;
-    if (fighter.grounded) fighter.animState = 'walk';
-  } else if (fighter.grounded) {
-    fighter.animState = 'idle';
-  }
+  if (dir === 3 && fighter.grounded) { fighter.vy = fighter.jumpVelocity; fighter.grounded = false; fighter.animState = 'jump'; fighter.jumpAttacks++; }
 
-  // 跳跃
-  if (dir === 3 && fighter.grounded) {
-    fighter.vy = fighter.jumpVelocity;
-    fighter.grounded = false;
-    fighter.animState = 'jump';
-    fighter.jumpAttacks++;
-  }
-
-  // 防御
-  if (input.block && fighter.grounded) {
-    fighter.blocking = true;
-    fighter.blocks++;
-    return;
-  }
+  if (input.block && fighter.grounded) { fighter.blocking = true; fighter.blocks++; return; }
   fighter.blocking = false;
 
-  // 闪避
-  if (input.rapidFlick && fighter.grounded) {
-    fighter.dashFrames = 5;
-    fighter.invincibleFrames = 5;
-    fighter.dashes++;
-    particles.spawn(fighter.x, fighter.y - 40, 10, fighter.charData.accent, 2, 2);
-    input.rapidFlick = false;
-    return;
-  }
+  if (input.rapidFlick && fighter.grounded) { fighter.dashFrames = 5; fighter.invincibleFrames = 5; fighter.dashes++; particles.spawn(fighter.x, fighter.y - 55, 12, fighter.charData.accent, 2.5, 3); input.rapidFlick = false; return; }
 
-  // 攻击
   if (input.lpJust) fighter.startAttack('lp');
   else if (input.hpJust) fighter.startAttack('hp');
   else if (input.spJust && input.spDir > 0) fighter.startAttack('sp', input.spDir);
@@ -1179,17 +1189,13 @@ function handlePlayerInput(fighter, isP1) {
 
 function handleAIInput(fighter, opponent, aiCtrl) {
   if (!fighter || !fighter.canActNow()) return;
-  const action = aiCtrl.update(fighter, opponent);
-  if (!action) return;
-
+  const action = aiCtrl.update(fighter, opponent); if (!action) return;
   if (action.move === 1) { fighter.x += fighter.walkSpeed; fighter.facingRight = true; fighter.animState = 'walk'; }
   else if (action.move === -1) { fighter.x -= fighter.walkSpeed; fighter.facingRight = false; fighter.animState = 'walk'; }
-
   if (action.jump && fighter.grounded) { fighter.vy = fighter.jumpVelocity; fighter.grounded = false; fighter.animState = 'jump'; }
   if (action.block) { fighter.blocking = true; return; }
   fighter.blocking = false;
   if (action.dash && fighter.grounded) { fighter.dashFrames = 5; fighter.invincibleFrames = 5; return; }
-
   if (action.attack === 'lp') fighter.startAttack('lp');
   else if (action.attack === 'hp') fighter.startAttack('hp');
   else if (action.attack === 'sp') fighter.startAttack('sp', action.spDir || 1);
@@ -1197,78 +1203,42 @@ function handleAIInput(fighter, opponent, aiCtrl) {
 
 function checkCollisions() {
   if (!p1 || !p2) return;
-  const a1 = p1.getAttackbox();
-  if (a1) { const h2 = p2.getHitbox(); if (rectOverlap(a1, h2) && !p1.attackHit) { p1.attackHit = true; p2.applyHit(p1.attackData, p1); } }
-  const a2 = p2.getAttackbox();
-  if (a2) { const h1 = p1.getHitbox(); if (rectOverlap(a2, h1) && !p2.attackHit) { p2.attackHit = true; p1.applyHit(p2.attackData, p2); } }
+  const a1 = p1.getAttackbox(); if (a1) { const h2 = p2.getHitbox(); if (rectOverlap(a1, h2) && !p1.attackHit) { p1.attackHit = true; p2.applyHit(p1.attackData, p1); } }
+  const a2 = p2.getAttackbox(); if (a2) { const h1 = p1.getHitbox(); if (rectOverlap(a2, h1) && !p2.attackHit) { p2.attackHit = true; p1.applyHit(p2.attackData, p2); } }
 }
 
 function checkRoundEnd() {
   if (stateSubState !== 'FIGHT') return;
-
   let winner = null;
   if (p1.hp <= 0) winner = 'p2';
   else if (p2.hp <= 0) winner = 'p1';
   else if (roundTimer <= 0) winner = p1.hp > p2.hp ? 'p1' : (p2.hp > p1.hp ? 'p2' : 'draw');
 
   if (winner) {
-    stateSubState = 'ROUND_END';
-    stateTimer = 60;
-    if (winner === 'p1') p1Wins++;
-    else if (winner === 'p2') p2Wins++;
-
+    stateSubState = 'ROUND_END'; stateTimer = 60;
+    if (winner === 'p1') p1Wins++; else if (winner === 'p2') p2Wins++;
     roundMessages.push(winner === 'p1' ? 'P1 获胜!' : (winner === 'p2' ? 'P2 获胜!' : '平局!'));
 
     if (fightMode === 'pve') {
       if (winner === 'p1') {
-        saveData.playerStats.wins++;
-        saveData.gold += 100;
-        if (saveData.playerStats.charUsage && p1) {
-          const cu = saveData.playerStats.charUsage[p1.charId];
-          if (cu) cu.wins = (cu.wins || 0) + 1;
-        }
+        saveData.playerStats.wins++; saveData.gold += 100;
+        if (saveData.playerStats.charUsage && p1) { const cu = saveData.playerStats.charUsage[p1.charId]; if (cu) cu.wins = (cu.wins || 0) + 1; }
         if (Math.random() < 0.35) {
           const fragChars = ['flame_dancer', 'frost_whisper'].filter(c => !saveData.unlockedCharacters.includes(c));
-          if (fragChars.length > 0) {
-            const fc = fragChars[randInt(0, fragChars.length - 1)];
-            saveData.fragments[fc] = (saveData.fragments[fc] || 0) + 1;
-            notificationText = '获得 ' + CHARACTERS[fc].name + ' 碎片! (' + saveData.fragments[fc] + '/20)';
-            notificationTimer = 90;
-          }
+          if (fragChars.length > 0) { const fc = fragChars[randInt(0, fragChars.length - 1)]; saveData.fragments[fc] = (saveData.fragments[fc] || 0) + 1; notificationText = '获得 ' + CHARACTERS[fc].name + ' 碎片! (' + saveData.fragments[fc] + '/20)'; notificationTimer = 90; }
         }
-        // 创建分身AI
         if (saveData.shadowAIs.length < 10 && Math.random() < 0.5) {
           const bv = p1.extractBehaviorVector();
-          saveData.shadowAIs.push({
-            id: 'ai_' + Date.now(),
-            name: '分身_' + (saveData.shadowAIs.length + 1),
-            characterId: p1.charId,
-            behaviorVector: bv,
-            wins: 0, losses: 0
-          });
-          notificationText = '新分身已创建!';
-          notificationTimer = 90;
+          saveData.shadowAIs.push({ id:'ai_' + Date.now(), name:'分身_' + (saveData.shadowAIs.length + 1), characterId:p1.charId, behaviorVector:bv, wins:0, losses:0 });
+          notificationText = '新分身已创建!'; notificationTimer = 90;
         }
-      } else {
-        saveData.gold = Math.max(0, saveData.gold - 20);
-      }
+      } else { saveData.gold = Math.max(0, saveData.gold - 20); }
       saveData.playerStats.totalMatches++;
     }
 
-    if (fightMode === 'auto') {
-      // 更新分身战绩
-      const ai1 = saveData.shadowAIs[autoBattleSel1];
-      const ai2 = saveData.shadowAIs[autoBattleSel2];
-      if (ai1 && ai2) {
-        if (winner === 'p1') { ai1.wins++; ai2.losses++; }
-        else if (winner === 'p2') { ai2.wins++; ai1.losses++; }
-      }
-    }
+    if (fightMode === 'auto') { const ai1 = saveData.shadowAIs[autoBattleSel1], ai2 = saveData.shadowAIs[autoBattleSel2]; if (ai1 && ai2) { if (winner === 'p1') { ai1.wins++; ai2.losses++; } else if (winner === 'p2') { ai2.wins++; ai1.losses++; } } }
 
-    if (p1Wins >= WINS_NEEDED || p2Wins >= WINS_NEEDED) {
-      stateSubState = 'MATCH_END';
-      stateTimer = 150;
-    }
+    if (p1Wins >= WINS_NEEDED || p2Wins >= WINS_NEEDED) { stateSubState = 'MATCH_END'; stateTimer = 150; }
   }
 }
 
@@ -1276,129 +1246,77 @@ function updateFight() {
   if (stateSubState === 'ROUND_INTRO') { stateTimer--; if (stateTimer <= 0) startRound(); return; }
   if (stateSubState === 'ROUND_END') {
     stateTimer--;
-    if (stateTimer <= 0) {
-      if (p1Wins >= WINS_NEEDED || p2Wins >= WINS_NEEDED) { stateSubState = 'MATCH_END'; stateTimer = 150; }
-      else { roundNumber++; stateSubState = 'ROUND_INTRO'; stateTimer = 60; }
-    }
+    if (stateTimer <= 0) { if (p1Wins >= WINS_NEEDED || p2Wins >= WINS_NEEDED) { stateSubState = 'MATCH_END'; stateTimer = 150; } else { roundNumber++; stateSubState = 'ROUND_INTRO'; stateTimer = 60; } }
     return;
   }
   if (stateSubState === 'MATCH_END') {
     stateTimer--;
-    if (stateTimer <= 0) {
-      const msg = checkUnlocks();
-      if (msg) { unlockMsg = msg; unlockMsgTimer = 120; }
-      saveToDisk();
-      gameState = STATE.MENU;
-    }
+    if (stateTimer <= 0) { const msg = checkUnlocks(); if (msg) { unlockMsg = msg; unlockMsgTimer = 120; } saveToDisk(); gameState = STATE.MENU; }
     return;
   }
 
   input.update();
-
-  if (fightMode !== 'auto') {
-    handlePlayerInput(p1, true);
-    if (fightMode === 'pvp') handlePlayerInput(p2, false);
-  }
-
+  if (fightMode !== 'auto') { handlePlayerInput(p1, true); if (fightMode === 'pvp') handlePlayerInput(p2, false); }
   if (fightMode === 'pve' && ai) handleAIInput(p2, p1, ai);
-  if (fightMode === 'auto') {
-    if (autoBattleAI1) handleAIInput(p1, p2, autoBattleAI1);
-    if (autoBattleAI2) handleAIInput(p2, p1, autoBattleAI2);
-  }
-
-  if (p1) p1.update();
-  if (p2) p2.update();
-  checkCollisions();
-  particles.update();
-  if (hitSparkTimer > 0) hitSparkTimer--;
-  if (screenShake > 0) screenShake--;
-  roundTimer--;
-  checkRoundEnd();
+  if (fightMode === 'auto') { if (autoBattleAI1) handleAIInput(p1, p2, autoBattleAI1); if (autoBattleAI2) handleAIInput(p2, p1, autoBattleAI2); }
+  if (p1) p1.update(); if (p2) p2.update();
+  checkCollisions(); particles.update();
+  if (hitSparkTimer > 0) hitSparkTimer--; if (screenShake > 0) screenShake--;
+  roundTimer--; checkRoundEnd();
   if (notificationTimer > 0) notificationTimer--;
   input.endFrame();
 }
 
 function renderFight() {
   ctx.save();
-  if (screenShake > 0) {
-    const sx = (Math.random() - 0.5) * screenShake * 2;
-    const sy = (Math.random() - 0.5) * screenShake * 2;
-    ctx.translate(sx, sy);
-  }
-
+  if (screenShake > 0) ctx.translate((Math.random() - 0.5) * screenShake * 2, (Math.random() - 0.5) * screenShake * 2);
   drawBackground(ctx);
-  if (p1) drawFighter(ctx, p1);
-  if (p2) drawFighter(ctx, p2);
-  particles.draw(ctx);
-  drawHUD(ctx);
+  if (p1) drawFighter(ctx, p1); if (p2) drawFighter(ctx, p2);
+  particles.draw(ctx); drawHUD(ctx);
 
-  // 状态文字
   if (stateSubState === 'ROUND_INTRO') {
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 40px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 56px sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('Round ' + (roundNumber + 1), CANVAS_W / 2, CANVAS_H / 2 - 30);
-    ctx.fillStyle = '#ffaa00'; ctx.fillText('FIGHT!', CANVAS_W / 2, CANVAS_H / 2 + 20);
+    ctx.fillStyle = '#ffaa00'; ctx.fillText('FIGHT!', CANVAS_W / 2, CANVAS_H / 2 + 30);
   }
   if (stateSubState === 'ROUND_END') {
-    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 40px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 56px sans-serif'; ctx.textAlign = 'center';
     ctx.fillText(roundMessages[roundMessages.length - 1] || '', CANVAS_W / 2, CANVAS_H / 2);
   }
   if (stateSubState === 'MATCH_END') {
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 44px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 60px sans-serif'; ctx.textAlign = 'center';
     ctx.fillText(p1Wins >= WINS_NEEDED ? 'P1 胜利!' : 'P2 胜利!', CANVAS_W / 2, CANVAS_H / 2 - 20);
-    ctx.fillStyle = '#fff'; ctx.font = '22px sans-serif';
-    ctx.fillText('最大连击: ' + maxCombo, CANVAS_W / 2, CANVAS_H / 2 + 25);
-    if (fightMode === 'pve' && p1Wins >= WINS_NEEDED) {
-      ctx.fillStyle = '#ffaa00'; ctx.font = '16px sans-serif';
-      ctx.fillText('+100 金币', CANVAS_W / 2, CANVAS_H / 2 + 55);
-    }
+    ctx.fillStyle = '#fff'; ctx.font = '28px sans-serif';
+    ctx.fillText('最大连击: ' + maxCombo, CANVAS_W / 2, CANVAS_H / 2 + 35);
+    if (fightMode === 'pve' && p1Wins >= WINS_NEEDED) { ctx.fillStyle = '#ffaa00'; ctx.font = '20px sans-serif'; ctx.fillText('+100 金币', CANVAS_W / 2, CANVAS_H / 2 + 75); }
   }
-
-  // 通知
-  if (notificationTimer > 0) {
-    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(notificationText, CANVAS_W / 2, CANVAS_H / 2 + 80);
-  }
-
+  if (notificationTimer > 0) { ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(notificationText, CANVAS_W / 2, CANVAS_H / 2 + 110); }
   ctx.restore();
-
-  // UI控件
-  input.drawJoystick(ctx);
-  input.drawButtons(ctx);
+  input.drawJoystick(ctx); input.drawButtons(ctx);
 }
 
 function renderTraining() {
   ctx.save();
-  if (screenShake > 0) {
-    ctx.translate((Math.random() - 0.5) * screenShake * 2, (Math.random() - 0.5) * screenShake * 2);
-  }
+  if (screenShake > 0) ctx.translate((Math.random() - 0.5) * screenShake * 2, (Math.random() - 0.5) * screenShake * 2);
   drawBackground(ctx);
-  if (p1) drawFighter(ctx, p1);
-  if (p2) drawFighter(ctx, p2);
-  particles.draw(ctx);
-  drawHUD(ctx);
-
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('训练模式 - 自由练习', CANVAS_W / 2, 105);
-  ctx.fillText('重拳键返回菜单', CANVAS_W / 2, 125);
-
+  if (p1) drawFighter(ctx, p1); if (p2) drawFighter(ctx, p2);
+  particles.draw(ctx); drawHUD(ctx);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('训练模式 - 自由练习', CANVAS_W / 2, 140);
+  ctx.fillText('重拳键返回菜单', CANVAS_W / 2, 168);
   ctx.restore();
-  input.drawJoystick(ctx);
-  input.drawButtons(ctx);
+  input.drawJoystick(ctx); input.drawButtons(ctx);
 }
 
-// ---- 菜单操作 ----
+// ============================================================
+// 菜单操作
+// ============================================================
 function handleMenuInput() {
   if (input.currentDir === 3) { menuSelection = (menuSelection - 1 + MENU_ITEMS.length) % MENU_ITEMS.length; input.currentDir = 0; }
   if (input.currentDir === 7) { menuSelection = (menuSelection + 1) % MENU_ITEMS.length; input.currentDir = 0; }
   if (input.lpJust || input.hpJust) {
-    switch (menuSelection) {
-      case 0: fightMode = 'pve'; gameState = STATE.CHAR_SELECT; break;
-      case 1: fightMode = 'pvp'; gameState = STATE.CHAR_SELECT; break;
-      case 2: fightMode = 'training'; gameState = STATE.CHAR_SELECT; break;
-      case 3: gameState = STATE.SHADOW_DOJO; break;
-      case 4: gameState = STATE.AUTO_BATTLE; break;
-    }
+    switch (menuSelection) { case 0: fightMode = 'pve'; gameState = STATE.CHAR_SELECT; break; case 1: fightMode = 'pvp'; gameState = STATE.CHAR_SELECT; break; case 2: fightMode = 'training'; gameState = STATE.CHAR_SELECT; break; case 3: gameState = STATE.SHADOW_DOJO; break; case 4: gameState = STATE.AUTO_BATTLE; break; }
   }
 }
 
@@ -1409,88 +1327,51 @@ function handleCharSelectInput() {
     if (input.currentDir === 3) { charSelectP2 = (charSelectP2 - 1 + unlockedCharIds.length) % unlockedCharIds.length; input.currentDir = 0; }
     if (input.currentDir === 7) { charSelectP2 = (charSelectP2 + 1) % unlockedCharIds.length; input.currentDir = 0; }
   }
-  if (input.lpJust) { initFight(fightMode); }
-  if (input.hpJust) { gameState = STATE.MENU; }
+  if (input.lpJust) initFight(fightMode);
+  if (input.hpJust) gameState = STATE.MENU;
 }
 
-function handleShadowDojoInput() {
-  if (input.hpJust || input.lpJust) { gameState = STATE.MENU; }
-}
+function handleShadowDojoInput() { if (input.hpJust || input.lpJust) gameState = STATE.MENU; }
 
 function handleAutoBattleInput() {
-  if (input.currentDir === 7) { autoBattleSel1 = (autoBattleSel1 + 1) % Math.max(1, saveData.shadowAIs.length); input.currentDir = 0; }
-  if (input.currentDir === 3) { autoBattleSel1 = (autoBattleSel1 - 1 + Math.max(1, saveData.shadowAIs.length)) % Math.max(1, saveData.shadowAIs.length); input.currentDir = 0; }
-  if (input.currentDir === 1) { autoBattleSel2 = (autoBattleSel2 + 1) % Math.max(1, saveData.shadowAIs.length); input.currentDir = 0; }
-  if (input.currentDir === 5) { autoBattleSel2 = (autoBattleSel2 - 1 + Math.max(1, saveData.shadowAIs.length)) % Math.max(1, saveData.shadowAIs.length); input.currentDir = 0; }
-  if (autoBattleSel1 === autoBattleSel2) autoBattleSel2 = (autoBattleSel1 + 1) % saveData.shadowAIs.length;
-  if (input.lpJust && saveData.shadowAIs.length >= 2) {
-    fightMode = 'auto';
-    initFight('auto');
+  if (saveData.shadowAIs.length >= 2) {
+    if (input.currentDir === 7) { autoBattleSel1 = (autoBattleSel1 + 1) % saveData.shadowAIs.length; input.currentDir = 0; }
+    if (input.currentDir === 3) { autoBattleSel1 = (autoBattleSel1 - 1 + saveData.shadowAIs.length) % saveData.shadowAIs.length; input.currentDir = 0; }
+    if (input.currentDir === 1) { autoBattleSel2 = (autoBattleSel2 + 1) % saveData.shadowAIs.length; input.currentDir = 0; }
+    if (input.currentDir === 5) { autoBattleSel2 = (autoBattleSel2 - 1 + saveData.shadowAIs.length) % saveData.shadowAIs.length; input.currentDir = 0; }
+    if (autoBattleSel1 === autoBattleSel2) autoBattleSel2 = (autoBattleSel1 + 1) % saveData.shadowAIs.length;
+    if (input.lpJust) { fightMode = 'auto'; initFight('auto'); }
   }
-  if (input.hpJust) { gameState = STATE.MENU; }
+  if (input.hpJust) gameState = STATE.MENU;
 }
 
-// ---- 游戏循环 ----
+// ============================================================
+// 主循环
+// ============================================================
 let lastTime = 0, accumulator = 0;
-
 function update() {
   input.update();
-
-  switch (gameState) {
-    case STATE.MENU: handleMenuInput(); break;
-    case STATE.CHAR_SELECT: handleCharSelectInput(); break;
-    case STATE.FIGHTING: updateFight(); break;
-    case STATE.TRAINING: updateFight(); break;
-    case STATE.SHADOW_DOJO: handleShadowDojoInput(); break;
-    case STATE.AUTO_BATTLE: handleAutoBattleInput(); break;
-  }
-
-  if (unlockMsgTimer > 0) {
-    unlockMsgTimer--;
-    if (unlockMsgTimer <= 0) unlockMsg = '';
-  }
-
+  switch (gameState) { case STATE.MENU: handleMenuInput(); break; case STATE.CHAR_SELECT: handleCharSelectInput(); break; case STATE.FIGHTING: updateFight(); break; case STATE.TRAINING: updateFight(); break; case STATE.SHADOW_DOJO: handleShadowDojoInput(); break; case STATE.AUTO_BATTLE: handleAutoBattleInput(); break; }
+  if (unlockMsgTimer > 0) { unlockMsgTimer--; if (unlockMsgTimer <= 0) unlockMsg = ''; }
   input.endFrame();
 }
 
 function render() {
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-
-  switch (gameState) {
-    case STATE.MENU: drawMenu(ctx); break;
-    case STATE.CHAR_SELECT: drawCharSelect(ctx); break;
-    case STATE.FIGHTING: renderFight(); break;
-    case STATE.TRAINING: renderTraining(); break;
-    case STATE.SHADOW_DOJO: drawShadowDojo(ctx); break;
-    case STATE.AUTO_BATTLE: drawAutoBattle(ctx); break;
-  }
-
-  // 解锁消息
-  if (unlockMsg && unlockMsgTimer > 0) {
-    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(CANVAS_W / 2 - 140, 200, 280, 50);
-    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(unlockMsg, CANVAS_W / 2, 232);
-  }
+  switch (gameState) { case STATE.MENU: drawMenu(ctx); break; case STATE.CHAR_SELECT: drawCharSelect(ctx); break; case STATE.FIGHTING: renderFight(); break; case STATE.TRAINING: renderTraining(); break; case STATE.SHADOW_DOJO: drawShadowDojo(ctx); break; case STATE.AUTO_BATTLE: drawAutoBattle(ctx); break; }
+  if (unlockMsg && unlockMsgTimer > 0) { ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(CANVAS_W / 2 - 180, 220, 360, 60); ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 24px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(unlockMsg, CANVAS_W / 2, 260); }
 }
 
 function gameLoop(timestamp) {
   if (lastTime === 0) lastTime = timestamp;
-  accumulator += Math.min(timestamp - lastTime, 100);
-  lastTime = timestamp;
-
-  while (accumulator >= FIXED_STEP) {
-    update();
-    accumulator -= FIXED_STEP;
-  }
-
+  accumulator += Math.min(timestamp - lastTime, 100); lastTime = timestamp;
+  while (accumulator >= FIXED_STEP) { update(); accumulator -= FIXED_STEP; }
   render();
   requestAnimationFrame(gameLoop);
 }
 
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveToDisk(); });
 window.addEventListener('beforeunload', () => saveToDisk());
-
-// ---- 启动 ----
 resizeCanvas();
 requestAnimationFrame(gameLoop);
 </script>

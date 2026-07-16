@@ -1,37 +1,1498 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>小乐开发留言板</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>影武传说 Phantom Brawl</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; touch-action: none; user-select: none; -webkit-user-select: none; }
+canvas { display: block; position: absolute; top: 0; left: 0; }
+</style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>留言板</h1>
-            <div id="clock"></div>
-        </header>
+<canvas id="game"></canvas>
+<script>
+// ============================================================
+// 影武传说 Phantom Brawl v2 - 完整版
+// ============================================================
 
-        <div class="message-form">
-            <textarea id="messageInput" placeholder="写下你的留言..."></textarea>
-            <div class="form-controls">
-                <div class="upload-controls">
-                    <label for="imageUpload" class="upload-btn">
-                        <i class="fas fa-image"></i>
-                    </label>
-                    <input type="file" id="imageUpload" accept="image/*" style="display: none;">
-                    <button id="emojiBtn"><i class="far fa-smile"></i></button>
-                </div>
-                <button id="submitBtn">发送留言</button>
-            </div>
-        </div>
+// ---- 常量 ----
+const FIXED_STEP = 1000 / 60;
+const CANVAS_W = 390;
+const CANVAS_H = 844;
+const GROUND_Y = 700;
+const LEFT_BOUND = 25;
+const RIGHT_BOUND = 365;
+const INPUT_BUFFER = 8;
+const MAX_HP = 1000;
+const ROUND_DURATION = 99 * 60;
+const WINS_NEEDED = 2;
 
-        <div class="messages-container" id="messagesContainer">
-            <!-- 留言将在这里动态添加 -->
-        </div>
-    </div>
-    <script src="script.js"></script>
+// ---- Canvas ----
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let scale = 1, gameW = CANVAS_W, gameH = CANVAS_H;
+
+function resizeCanvas() {
+  const w = window.innerWidth, h = window.innerHeight;
+  const ratio = CANVAS_W / CANVAS_H;
+  gameH = w / h > ratio ? h : w / ratio;
+  gameW = gameH * ratio;
+  scale = gameW / CANVAS_W;
+  canvas.style.width = gameW + 'px';
+  canvas.style.height = gameH + 'px';
+  canvas.width = CANVAS_W;
+  canvas.height = CANVAS_H;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// ---- 工具 ----
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+function rectOverlap(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
+function rand(min, max) { return min + Math.random() * (max - min); }
+function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+function lerpColor(c1, c2, t) {
+  const r1 = parseInt(c1.slice(1,3),16), g1 = parseInt(c1.slice(3,5),16), b1 = parseInt(c1.slice(5,7),16);
+  const r2 = parseInt(c2.slice(1,3),16), g2 = parseInt(c2.slice(3,5),16), b2 = parseInt(c2.slice(5,7),16);
+  const r = Math.round(r1 + (r2 - r1) * t), g = Math.round(g1 + (g2 - g1) * t), b = Math.round(b1 + (b2 - b1) * t);
+  return '#' + r.toString(16).padStart(2,'0') + g.toString(16).padStart(2,'0') + b.toString(16).padStart(2,'0');
+}
+
+// ---- 角色数据 ----
+const CHARACTERS = {
+  shadow_blade: {
+    id:'shadow_blade', name:'影刃', color:'#4a4ae8', accent:'#7b7bff', desc:'速度快，空中连段多',
+    walkSpeed:5.0, jumpVelocity:-13, gravity:0.6,
+    attacks:{ lp:{dmg:40,range:50,startup:4,active:3,recovery:6,hStun:12,bStun:8,kb:50},
+      hp:{dmg:100,range:55,startup:8,active:4,recovery:12,hStun:20,bStun:12,kb:100},
+      sp_r:{dmg:120,range:80,startup:6,active:4,recovery:14,hStun:22,bStun:14,kb:130,name:'暗影突刺'},
+      sp_ur:{dmg:100,range:60,startup:5,active:4,recovery:12,hStun:18,bStun:10,kb:90,name:'升龙斩'},
+      sp_u:{dmg:110,range:55,startup:6,active:4,recovery:15,hStun:20,bStun:12,kb:80,name:'冲天击'},
+      sp_ul:{dmg:90,range:65,startup:5,active:4,recovery:10,hStun:16,bStun:10,kb:70,name:'回旋踢'},
+      sp_l:{dmg:80,range:70,startup:4,active:3,recovery:10,hStun:15,bStun:8,kb:60,name:'后退斩'},
+      sp_dl:{dmg:70,range:60,startup:5,active:3,recovery:10,hStun:14,bStun:8,kb:50,name:'扫堂腿'},
+      sp_d:{dmg:130,range:50,startup:10,active:5,recovery:18,hStun:24,bStun:14,kb:60,name:'震地击'},
+      sp_dr:{dmg:100,range:75,startup:5,active:4,recovery:12,hStun:18,bStun:10,kb:100,name:'突袭'}
+    }
+  },
+  thunder: {
+    id:'thunder', name:'雷霆', color:'#e8c84a', accent:'#fff44f', desc:'攻击带电，可麻痹对手',
+    walkSpeed:4.0, jumpVelocity:-12, gravity:0.6,
+    attacks:{ lp:{dmg:35,range:48,startup:4,active:3,recovery:5,hStun:10,bStun:7,kb:45,elec:1},
+      hp:{dmg:90,range:52,startup:7,active:4,recovery:11,hStun:18,bStun:10,kb:90,elec:1},
+      sp_r:{dmg:110,range:75,startup:5,active:4,recovery:13,hStun:20,bStun:12,kb:120,name:'雷神冲刺',elec:1},
+      sp_ur:{dmg:95,range:55,startup:5,active:4,recovery:11,hStun:16,bStun:9,kb:85,name:'雷升拳',elec:1},
+      sp_u:{dmg:100,range:50,startup:6,active:4,recovery:14,hStun:18,bStun:11,kb:75,name:'雷霆击',elec:1},
+      sp_ul:{dmg:85,range:60,startup:4,active:4,recovery:9,hStun:15,bStun:9,kb:65,name:'电光踢',elec:1},
+      sp_l:{dmg:75,range:65,startup:4,active:3,recovery:9,hStun:14,bStun:7,kb:55,name:'后撤雷击',elec:1},
+      sp_dl:{dmg:65,range:55,startup:4,active:3,recovery:9,hStun:13,bStun:7,kb:45,name:'扫雷腿',elec:1},
+      sp_d:{dmg:120,range:48,startup:9,active:5,recovery:17,hStun:22,bStun:13,kb:55,name:'雷神之锤',elec:1},
+      sp_dr:{dmg:95,range:70,startup:5,active:4,recovery:11,hStun:17,bStun:9,kb:95,name:'雷袭',elec:1}
+    }
+  },
+  boulder: {
+    id:'boulder', name:'巨石', color:'#8b6914', accent:'#c4a44a', desc:'霸体、伤害高、移动慢',
+    walkSpeed:3.0, jumpVelocity:-10, gravity:0.6,
+    attacks:{ lp:{dmg:50,range:50,startup:5,active:3,recovery:8,hStun:14,bStun:10,kb:55},
+      hp:{dmg:120,range:55,startup:10,active:4,recovery:15,hStun:24,bStun:14,kb:120},
+      sp_r:{dmg:140,range:70,startup:8,active:5,recovery:16,hStun:26,bStun:16,kb:140,name:'巨岩冲撞'},
+      sp_ur:{dmg:110,range:55,startup:7,active:4,recovery:13,hStun:20,bStun:12,kb:95,name:'岩升拳'},
+      sp_u:{dmg:120,range:50,startup:8,active:4,recovery:16,hStun:22,bStun:14,kb:80,name:'巨石冲天'},
+      sp_ul:{dmg:100,range:60,startup:6,active:4,recovery:12,hStun:18,bStun:11,kb:75,name:'回旋岩击'},
+      sp_l:{dmg:90,range:65,startup:5,active:3,recovery:11,hStun:16,bStun:10,kb:65,name:'后撤岩击'},
+      sp_dl:{dmg:80,range:55,startup:6,active:3,recovery:11,hStun:15,bStun:9,kb:55,name:'岩扫腿'},
+      sp_d:{dmg:150,range:55,startup:12,active:6,recovery:20,hStun:28,bStun:16,kb:70,name:'大地震击'},
+      sp_dr:{dmg:115,range:70,startup:7,active:4,recovery:14,hStun:20,bStun:12,kb:110,name:'岩袭'}
+    }
+  },
+  flame_dancer: {
+    id:'flame_dancer', name:'焰舞', color:'#e84020', accent:'#ff6b3a', desc:'火焰持续伤害',
+    walkSpeed:4.5, jumpVelocity:-12.5, gravity:0.6,
+    attacks:{ lp:{dmg:38,range:48,startup:4,active:3,recovery:6,hStun:11,bStun:8,kb:48,fire:1},
+      hp:{dmg:95,range:52,startup:7,active:4,recovery:11,hStun:19,bStun:11,kb:95,fire:1},
+      sp_r:{dmg:115,range:75,startup:5,active:4,recovery:12,hStun:21,bStun:13,kb:125,name:'火焰突进',fire:1},
+      sp_ur:{dmg:95,range:55,startup:5,active:4,recovery:11,hStun:17,bStun:10,kb:88,name:'焰升拳',fire:1},
+      sp_u:{dmg:105,range:50,startup:6,active:4,recovery:14,hStun:19,bStun:12,kb:78,name:'炎天击',fire:1},
+      sp_ul:{dmg:88,range:60,startup:5,active:4,recovery:10,hStun:16,bStun:9,kb:68,name:'火焰踢',fire:1},
+      sp_l:{dmg:78,range:65,startup:4,active:3,recovery:9,hStun:14,bStun:8,kb:58,name:'焰退斩',fire:1},
+      sp_dl:{dmg:68,range:55,startup:5,active:3,recovery:9,hStun:13,bStun:8,kb:48,name:'火扫腿',fire:1},
+      sp_d:{dmg:125,range:48,startup:10,active:5,recovery:17,hStun:23,bStun:14,kb:58,name:'烈焰震击',fire:1},
+      sp_dr:{dmg:98,range:70,startup:5,active:4,recovery:11,hStun:18,bStun:10,kb:98,name:'火袭',fire:1}
+    }
+  },
+  frost_whisper: {
+    id:'frost_whisper', name:'霜语', color:'#40c0e8', accent:'#80eeff', desc:'冻结对手',
+    walkSpeed:4.2, jumpVelocity:-12.5, gravity:0.6,
+    attacks:{ lp:{dmg:36,range:50,startup:4,active:3,recovery:5,hStun:11,bStun:7,kb:45,freeze:1},
+      hp:{dmg:88,range:54,startup:7,active:4,recovery:10,hStun:18,bStun:10,kb:90,freeze:1},
+      sp_r:{dmg:108,range:78,startup:5,active:4,recovery:12,hStun:20,bStun:12,kb:120,name:'霜冻突进',freeze:1},
+      sp_ur:{dmg:90,range:58,startup:5,active:4,recovery:11,hStun:16,bStun:9,kb:85,name:'冰升拳',freeze:1},
+      sp_u:{dmg:100,range:52,startup:6,active:4,recovery:13,hStun:18,bStun:11,kb:75,name:'冰天击',freeze:1},
+      sp_ul:{dmg:82,range:62,startup:5,active:4,recovery:9,hStun:15,bStun:9,kb:65,name:'冰旋踢',freeze:1},
+      sp_l:{dmg:72,range:68,startup:4,active:3,recovery:9,hStun:14,bStun:7,kb:55,name:'冰退斩',freeze:1},
+      sp_dl:{dmg:62,range:58,startup:5,active:3,recovery:9,hStun:13,bStun:7,kb:45,name:'冰扫腿',freeze:1},
+      sp_d:{dmg:118,range:50,startup:10,active:5,recovery:16,hStun:22,bStun:13,kb:55,name:'冰霜震击',freeze:1},
+      sp_dr:{dmg:92,range:72,startup:5,active:4,recovery:11,hStun:17,bStun:9,kb:95,name:'冰袭',freeze:1}
+    }
+  }
+};
+
+const DIR_NAMES = ['','→','↗','↑','↖','←','↙','↓','↘'];
+const DIR_KEYS = { 1:'r', 2:'ur', 3:'u', 4:'ul', 5:'l', 6:'dl', 7:'d', 8:'dr' };
+
+// ---- 存档系统 ----
+const SAVE_KEY = 'phantom_save';
+const DEFAULT_SAVE = {
+  gold: 5000, unlockedCharacters: ['shadow_blade','thunder','boulder'],
+  fragments: { flame_dancer:0, frost_whisper:0 },
+  playerStats: { totalMatches:0, wins:0, highestCombo:0, charUsage:{} },
+  shadowAIs: [], comboLibraries: [],
+  settings: { sound:true, vibration:true }
+};
+let saveData = JSON.parse(JSON.stringify(DEFAULT_SAVE));
+
+function loadSave() {
+  try { const r = localStorage.getItem(SAVE_KEY); if (r) { const p = JSON.parse(r); saveData = Object.assign(JSON.parse(JSON.stringify(DEFAULT_SAVE)), p); } }
+  catch(e) { saveData = JSON.parse(JSON.stringify(DEFAULT_SAVE)); }
+}
+function saveToDisk() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(saveData)); } catch(e) {} }
+loadSave();
+
+// 导出/导入
+function exportSave() {
+  const blob = new Blob([JSON.stringify(saveData,null,2)], { type:'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'phantom_save.json'; a.click();
+}
+function importSave(file) {
+  const reader = new FileReader();
+  reader.onload = () => { try { saveData = JSON.parse(reader.result); saveToDisk(); location.reload(); } catch(e) {} };
+  reader.readAsText(file);
+}
+
+// 检查解锁
+function checkUnlocks() {
+  if (saveData.fragments.flame_dancer >= 20 && !saveData.unlockedCharacters.includes('flame_dancer')) {
+    saveData.unlockedCharacters.push('flame_dancer');
+    saveData.fragments.flame_dancer = 0;
+    return '解锁角色: 焰舞!';
+  }
+  if (saveData.fragments.frost_whisper >= 20 && !saveData.unlockedCharacters.includes('frost_whisper')) {
+    saveData.unlockedCharacters.push('frost_whisper');
+    saveData.fragments.frost_whisper = 0;
+    return '解锁角色: 霜语!';
+  }
+  return null;
+}
+
+// ---- 状态机 ----
+const STATE = { MENU:0, CHAR_SELECT:1, FIGHTING:2, TRAINING:3, SHADOW_DOJO:4, AUTO_BATTLE:5, RESULT:6 };
+let gameState = STATE.MENU;
+let stateSubState = null; // ROUND_INTRO, FIGHT, ROUND_END, MATCH_END
+let stateTimer = 0;
+let menuSelection = 0;
+const MENU_ITEMS = ['征战之路 PVE', '双人对战', '训练模式', '影武道场', '离线斗技场'];
+let charSelectP1 = 0, charSelectP2 = 0;
+let unlockedCharIds = [];
+let fightMode = 'pve';
+let roundNumber = 0;
+let p1Wins = 0, p2Wins = 0;
+let roundTimer = 0;
+let comboCount = 0;
+let maxCombo = 0;
+let hitSparkTimer = 0;
+let screenShake = 0;
+let roundMessages = [];
+let notificationText = '';
+let notificationTimer = 0;
+let unlockMsg = '';
+let unlockMsgTimer = 0;
+
+// ---- 输入处理 ----
+class InputHandler {
+  constructor() {
+    this.dirQueue = new Array(60).fill(0);
+    this.dirIndex = 0;
+    this.currentDir = 0;
+    this.joystickActive = false;
+    this.joystickBase = { x:0, y:0 };
+    this.joystickCurrent = { x:0, y:0 };
+    this.joystickDrag = { dx:0, dy:0, dist:0, angle:0 };
+    this._lastDragDy = 0;
+    this.rapidFlick = false;
+    this.flickStartTime = 0;
+    this.flickStartY = 0;
+    this.flickSpeed = 0;
+
+    this.lp = false; this.lpJust = false;
+    this.hp = false; this.hpHold = false; this.hpHoldStart = 0; this.hpJust = false;
+    this.sp = false; this.spDir = -1; this.spStart = { x:0, y:0 }; this.spJust = false;
+    this.block = false; this.blockTimer = 0;
+
+    this.buffer = [];
+    this.joystickId = null;
+    this.buttonId_lp = null; this.buttonId_hp = null; this.buttonId_sp = null;
+
+    // 键盘
+    this.keys = {};
+    this._setupTouch();
+    this._setupKeyboard();
+  }
+
+  _setupTouch() {
+    canvas.addEventListener('touchstart', e => this._onTouchStart(e), { passive:false });
+    canvas.addEventListener('touchmove', e => this._onTouchMove(e), { passive:false });
+    canvas.addEventListener('touchend', e => this._onTouchEnd(e), { passive:false });
+    canvas.addEventListener('touchcancel', e => this._onTouchEnd(e), { passive:false });
+  }
+
+  _setupKeyboard() {
+    window.addEventListener('keydown', e => {
+      this.keys[e.key] = true;
+      if (e.key === 'ArrowLeft' || e.key === 'a') this.currentDir = 5;
+      if (e.key === 'ArrowRight' || e.key === 'd') this.currentDir = 1;
+      if (e.key === 'ArrowUp' || e.key === 'w') this.currentDir = 3;
+      if (e.key === 'ArrowDown' || e.key === 's') this.currentDir = 7;
+      if (e.key === 'j') { this.lp = true; this.lpJust = true; }
+      if (e.key === 'k') { this.hp = true; this.hpHold = true; this.hpHoldStart = performance.now(); this.hpJust = true; }
+      if (e.key === 'u') { this.sp = true; this.spJust = true; this.spDir = this.currentDir || 1; }
+      if (e.key === 'i') { this.block = true; this.blockTimer = 180; }
+      if (e.key === 'o') { this.rapidFlick = true; }
+    });
+    window.addEventListener('keyup', e => {
+      this.keys[e.key] = false;
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'ArrowRight' || e.key === 'd' ||
+          e.key === 'ArrowUp' || e.key === 'w' || e.key === 'ArrowDown' || e.key === 's') {
+        if (!this.keys['ArrowLeft'] && !this.keys['a'] && !this.keys['ArrowRight'] && !this.keys['d'] &&
+            !this.keys['ArrowUp'] && !this.keys['w'] && !this.keys['ArrowDown'] && !this.keys['s']) {
+          this.currentDir = 0;
+        }
+      }
+      if (e.key === 'j') { this.lp = false; }
+      if (e.key === 'k') { this.hp = false; this.hpHold = false; }
+      if (e.key === 'u') { this.sp = false; }
+      if (e.key === 'i') { this.block = false; }
+      if (e.key === 'o') { this.rapidFlick = false; }
+    });
+  }
+
+  _toGameCoords(t) {
+    const rect = canvas.getBoundingClientRect();
+    return { x:(t.clientX - rect.left) / scale, y:(t.clientY - rect.top) / scale };
+  }
+
+  _getDir8(dx, dy) {
+    if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return 0;
+    const a = ((Math.atan2(-dy, dx) * 180 / Math.PI) + 360) % 360;
+    if (a >= 337.5 || a < 22.5) return 1;
+    if (a < 67.5) return 2;
+    if (a < 112.5) return 3;
+    if (a < 157.5) return 4;
+    if (a < 202.5) return 5;
+    if (a < 247.5) return 6;
+    if (a < 292.5) return 7;
+    return 8;
+  }
+
+  _onTouchStart(e) {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      const p = this._toGameCoords(t);
+      if (p.x < CANVAS_W / 2 && p.y > CANVAS_H / 2) {
+        this.joystickActive = true;
+        this.joystickBase = { x:p.x, y:p.y };
+        this.joystickCurrent = { x:p.x, y:p.y };
+        this.flickStartTime = performance.now();
+        this.flickStartY = p.y;
+        this.joystickId = t.identifier;
+      }
+      if (p.x > CANVAS_W / 2 && p.y > CANVAS_H * 0.55) {
+        if (p.y < CANVAS_H * 0.72) {
+          this.lp = true; this.lpJust = true; this.buttonId_lp = t.identifier;
+        } else if (p.y < CANVAS_H * 0.85) {
+          this.hp = true; this.hpHold = true; this.hpHoldStart = performance.now(); this.hpJust = true; this.buttonId_hp = t.identifier;
+        } else {
+          this.sp = true; this.spStart = { x:p.x, y:p.y }; this.spDir = -1; this.spJust = true; this.buttonId_sp = t.identifier;
+        }
+      }
+    }
+  }
+
+  _onTouchMove(e) {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      const p = this._toGameCoords(t);
+      if (t.identifier === this.joystickId) {
+        this.joystickCurrent = { x:p.x, y:p.y };
+        const dx = p.x - this.joystickBase.x, dy = p.y - this.joystickBase.y;
+        const d = Math.hypot(dx, dy);
+        this.joystickDrag = { dx, dy, dist:d, angle:Math.atan2(-dy, dx) };
+        this._lastDragDy = dy;
+        this.flickSpeed = d / Math.max(1, (performance.now() - this.flickStartTime) / 1000);
+        this.currentDir = this._getDir8(dx, dy);
+        if (dy > 20 && d > 20 && performance.now() - this.flickStartTime < 50) this.rapidFlick = true;
+        if (Math.abs(dx) > 20 && this.flickSpeed > 200) this.rapidFlick = true;
+      }
+      if (t.identifier === this.buttonId_sp && this.sp) {
+        const sdx = p.x - this.spStart.x, sdy = p.y - this.spStart.y;
+        if (Math.hypot(sdx, sdy) > 15) this.spDir = this._getDir8(sdx, sdy);
+      }
+    }
+  }
+
+  _onTouchEnd(e) {
+    for (const t of e.changedTouches) {
+      if (t.identifier === this.joystickId) {
+        const elapsed = performance.now() - this.flickStartTime;
+        if (this._lastDragDy > 20 && elapsed < 50) {
+          this.block = true; this.blockTimer = 180;
+        }
+        this.joystickActive = false;
+        this.joystickCurrent = { ...this.joystickBase };
+        this.joystickDrag = { dx:0, dy:0, dist:0, angle:0 };
+        this._lastDragDy = 0;
+        this.currentDir = 0;
+        this.joystickId = null;
+        this.rapidFlick = false;
+      }
+      if (t.identifier === this.buttonId_lp) { this.lp = false; this.buttonId_lp = null; }
+      if (t.identifier === this.buttonId_hp) { this.hp = false; this.hpHold = false; this.buttonId_hp = null; }
+      if (t.identifier === this.buttonId_sp) { this.sp = false; this.buttonId_sp = null; }
+    }
+  }
+
+  update() {
+    this.dirQueue[this.dirIndex] = this.currentDir;
+    this.dirIndex = (this.dirIndex + 1) % 60;
+    if (this.lpJust) this.buffer.push({ t:'lp', frame:0 });
+    if (this.hpJust) this.buffer.push({ t:'hp', frame:0 });
+    if (this.spJust && this.spDir > 0) this.buffer.push({ t:'sp', dir:this.spDir, frame:0 });
+    for (let i = this.buffer.length - 1; i >= 0; i--) {
+      this.buffer[i].frame++;
+      if (this.buffer[i].frame > INPUT_BUFFER) this.buffer.splice(i, 1);
+    }
+    if (this.block && this.blockTimer > 0) {
+      this.blockTimer--;
+      if (this.blockTimer <= 0) this.block = false;
+    }
+  }
+
+  endFrame() {
+    this.lpJust = false; this.hpJust = false; this.spJust = false;
+  }
+
+  drawJoystick(ctx) {
+    const bx = 80, by = CANVAS_H - 120;
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(bx, by, 60, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fill();
+
+    const cx = this.joystickActive ? this.joystickCurrent.x : bx;
+    const cy = this.joystickActive ? this.joystickCurrent.y : by;
+    const cdx = this.joystickActive ? clamp(cx, bx - 60, bx + 60) : bx;
+    const cdy = this.joystickActive ? clamp(cy, by - 60, by + 60) : by;
+
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.beginPath(); ctx.arc(cdx, cdy, 25, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.beginPath(); ctx.arc(cdx, cdy, 25, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  drawButtons(ctx) {
+    const cx = CANVAS_W - 80;
+    const buttons = [
+      { y:CANVAS_H * 0.58, label:'轻拳', active:this.lp, color:'rgba(255,150,150,0.5)', activeColor:'#ff9999' },
+      { y:CANVAS_H * 0.74, label:'重拳', active:this.hp, color:'rgba(255,100,100,0.5)', activeColor:'#ff6666' },
+      { y:CANVAS_H * 0.88, label:'必杀', active:this.sp, color:'rgba(255,170,0,0.5)', activeColor:'#ffaa00' }
+    ];
+    buttons.forEach(b => {
+      ctx.fillStyle = b.active ? b.activeColor : b.color;
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(cx - 30, b.y, 60, 60, 50); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(b.label, cx, b.y + 35);
+    });
+  }
+}
+
+const input = new InputHandler();
+
+// ---- 粒子系统 ----
+class Particle {
+  constructor(x, y, vx, vy, life, color, size) {
+    this.x = x; this.y = y; this.vx = vx; this.vy = vy; this.life = life; this.maxLife = life;
+    this.color = color; this.size = size || 3;
+  }
+  update() { this.x += this.vx; this.y += this.vy; this.vy += 0.15; this.life--; }
+  alive() { return this.life > 0; }
+  draw(ctx) {
+    const a = this.life / this.maxLife;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = this.color;
+    ctx.fillRect(this.x - this.size/2, this.y - this.size/2, this.size, this.size);
+    ctx.globalAlpha = 1;
+  }
+}
+
+class ParticlePool {
+  constructor() { this.particles = []; }
+  spawn(x, y, count, color, force, size) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = rand(0.5, 1) * (force || 3);
+      this.particles.push(new Particle(x, y, Math.cos(angle)*speed, Math.sin(angle)*speed - 2, 10 + rand(0, 15), color, size || rand(2, 4)));
+    }
+  }
+  update() {
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      this.particles[i].update();
+      if (!this.particles[i].alive()) this.particles.splice(i, 1);
+    }
+  }
+  draw(ctx) { for (const p of this.particles) p.draw(ctx); }
+}
+
+const particles = new ParticlePool();
+
+// ---- 格斗家 ----
+class Fighter {
+  constructor(charId, x, facingRight, isPlayer1) {
+    const data = CHARACTERS[charId];
+    this.charId = charId; this.charData = data;
+    this.x = x; this.y = GROUND_Y;
+    this.vx = 0; this.vy = 0;
+    this.facingRight = facingRight;
+    this.isPlayer1 = isPlayer1;
+    this.width = 40; this.height = 80;
+    this.hp = MAX_HP; this.maxHp = MAX_HP;
+    this.walkSpeed = data.walkSpeed;
+    this.jumpVelocity = data.jumpVelocity;
+    this.gravity = data.gravity;
+    this.state = 'IDLE';
+    this.grounded = true;
+    this.attackData = null;
+    this.attackPhase = '';
+    this.attackPhaseTimer = 0;
+    this.attackHit = false;
+    this.canAct = true;
+    this.hitStunTimer = 0;
+    this.knockbackVx = 0;
+    this.blocking = false;
+    this.dashFrames = 0;
+    this.invincibleFrames = 0;
+    this.electricParalyze = 0;
+    this.freezeTimer = 0;
+    this.fireDOT = 0;
+    this.fireDOTTimer = 0;
+    this.animState = 'idle';
+    this.animFrameIdx = 0;
+    this.animTick = 0;
+    this.flashTimer = 0;
+    // 统计数据
+    this.totalAttacks = 0; this.specialUsed = 0;
+    this.jumpAttacks = 0; this.blocks = 0; this.dashes = 0;
+    this.hitsLanded = 0; this.hitsTaken = 0;
+    this.combosStarted = 0;
+  }
+
+  getHitbox() { return { x:this.x - this.width/2, y:this.y - this.height, w:this.width, h:this.height }; }
+  getAttackbox() {
+    if (!this.attackData || this.attackPhase !== 'active') return null;
+    const range = this.attackData.range;
+    const d = this.facingRight ? 1 : -1;
+    return { x:this.x + (d > 0 ? this.width/2 : -this.width/2 - range), y:this.y - this.height * 0.7, w:range, h:this.height * 0.5 };
+  }
+
+  canActNow() {
+    return this.canAct && this.state !== 'HIT' && this.state !== 'BLOCK' && this.dashFrames <= 0 && this.freezeTimer <= 0;
+  }
+
+  startAttack(type, dir) {
+    if (!this.canActNow()) return;
+    let atk = null;
+    if (type === 'lp') atk = this.charData.attacks.lp;
+    else if (type === 'hp') atk = this.charData.attacks.hp;
+    else if (type === 'sp') {
+      const d = DIR_KEYS[dir || 1];
+      atk = this.charData.attacks['sp_' + d];
+      if (!atk) return;
+      this.specialUsed++;
+    }
+    if (!atk) return;
+    this.attackData = atk;
+    this.attackPhase = 'startup';
+    this.attackPhaseTimer = atk.startup;
+    this.attackHit = false;
+    this.state = 'ATTACK';
+    this.canAct = false;
+    this.totalAttacks++;
+    this.animState = type === 'sp' ? 'special' : (type === 'hp' ? 'hp' : 'lp');
+    this.animFrameIdx = 0; this.animTick = 0;
+  }
+
+  updateAttack() {
+    if (!this.attackData) return;
+    this.attackPhaseTimer--;
+    if (this.attackPhaseTimer <= 0) {
+      if (this.attackPhase === 'startup') { this.attackPhase = 'active'; this.attackPhaseTimer = this.attackData.active; }
+      else if (this.attackPhase === 'active') { this.attackPhase = 'recovery'; this.attackPhaseTimer = this.attackData.recovery; }
+      else { this.attackData = null; this.attackPhase = ''; this.state = 'IDLE'; this.canAct = true; this.animState = 'idle'; }
+    }
+  }
+
+  applyHit(attackData, attacker) {
+    if (this.invincibleFrames > 0) return;
+    if (this.blocking || this.state === 'BLOCK') {
+      this.hitStunTimer = attackData.bStun;
+      this.knockbackVx = (attacker.facingRight ? 1 : -1) * attackData.kb * 0.3;
+      this.state = 'BLOCK'; this.animState = 'block';
+      particles.spawn(this.x, this.y - 40, 3, '#ffffff', 1.5, 2);
+      return;
+    }
+    if (this.state === 'HIT') return;
+
+    const dmg = attackData.dmg;
+    this.hp -= dmg;
+    this.hitsTaken++;
+    attacker.hitsLanded++;
+    this.hitStunTimer = attackData.hStun;
+    this.knockbackVx = (attacker.facingRight ? 1 : -1) * attackData.kb * 0.5;
+    this.vy = -3;
+    this.state = 'HIT'; this.canAct = false;
+    this.attackData = null; this.attackPhase = '';
+    this.animState = 'hit'; this.grounded = false;
+    this.flashTimer = 3;
+
+    if (attackData.elec) this.electricParalyze = 15;
+    if (attackData.freeze) this.freezeTimer = 30;
+    if (attackData.fire) { this.fireDOT = dmg * 0.15; this.fireDOTTimer = 60; }
+
+    comboCount++;
+    if (comboCount > maxCombo) { maxCombo = comboCount; if (maxCombo > saveData.playerStats.highestCombo) saveData.playerStats.highestCombo = maxCombo; }
+    hitSparkTimer = 8;
+    screenShake = 4;
+    particles.spawn(this.x, this.y - 40, 8, '#ffff00', 4, 3);
+    particles.spawn(this.x, this.y - 40, 4, attacker.charData.accent, 3, 2);
+  }
+
+  update() {
+    if (this.flashTimer > 0) this.flashTimer--;
+    if (this.invincibleFrames > 0) this.invincibleFrames--;
+    if (this.dashFrames > 0) this.dashFrames--;
+    if (this.electricParalyze > 0) this.electricParalyze--;
+    if (this.freezeTimer > 0) this.freezeTimer--;
+    if (this.fireDOTTimer > 0) {
+      this.fireDOTTimer--;
+      if (this.fireDOTTimer % 30 === 0) this.hp -= this.fireDOT;
+    }
+
+    this.updateAttack();
+
+    if (this.state === 'HIT') {
+      this.hitStunTimer--;
+      this.x += this.knockbackVx;
+      this.knockbackVx *= 0.85;
+      if (this.grounded) this.knockbackVx *= 0.8;
+      if (this.hitStunTimer <= 0) {
+        this.state = 'IDLE'; this.canAct = true; this.animState = 'idle'; comboCount = 0;
+      }
+    }
+    if (this.state === 'BLOCK') {
+      this.hitStunTimer--;
+      this.x += this.knockbackVx;
+      this.knockbackVx *= 0.85;
+      if (this.hitStunTimer <= 0) {
+        this.state = 'IDLE'; this.canAct = true; this.blocking = false; this.animState = 'idle';
+      }
+    }
+
+    if (!this.grounded) {
+      this.vy += this.gravity;
+      this.y += this.vy;
+      if (this.y >= GROUND_Y) {
+        this.y = GROUND_Y; this.vy = 0; this.grounded = true;
+        if (this.state === 'HIT') {
+          this.state = 'IDLE'; this.canAct = true; this.animState = 'idle'; comboCount = 0;
+        }
+      }
+    }
+
+    this.x = clamp(this.x, LEFT_BOUND, RIGHT_BOUND);
+
+    this.animTick++;
+    const animSpeeds = { idle:8, walk:4, jump:8, lp:3, hp:3, special:3, hit:4, block:8 };
+    const speed = animSpeeds[this.animState] || 8;
+    if (this.animTick >= speed) { this.animTick = 0; this.animFrameIdx++; }
+  }
+
+  // 提取行为向量
+  extractBehaviorVector() {
+    const total = Math.max(1, this.totalAttacks);
+    return [
+      clamp(this.totalAttacks / 120, 0.1, 1),    // 攻击激进程度
+      clamp(this.combosStarted / Math.max(1, this.totalAttacks), 0.1, 1), // 连招倾向
+      clamp(this.dashes / 120, 0.05, 1),          // 闪避率
+      clamp(this.blocks / 120, 0.05, 1),          // 防御频率
+      clamp(this.jumpAttacks / Math.max(1, this.totalAttacks), 0.05, 1), // 跳跃攻击偏好
+      clamp(this.specialUsed / Math.max(1, this.totalAttacks), 0.05, 1)  // 必杀技使用频率
+    ];
+  }
+}
+
+// ---- 渲染 ----
+function drawFighter(ctx, f) {
+  ctx.save();
+  const cx = f.x, cy = f.y;
+
+  if (f.invincibleFrames > 0 && f.invincibleFrames % 4 < 2) ctx.globalAlpha = 0.4;
+  if (f.freezeTimer > 0) ctx.globalAlpha = 0.7;
+  if (f.flashTimer > 0 && f.flashTimer % 2 === 0) ctx.globalAlpha = 0.5;
+
+  const data = f.charData;
+  const color = data.color, accent = data.accent;
+  const bodyW = 28, bodyH = 40;
+
+  // 阴影
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - 2, 18, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 身体
+  ctx.fillStyle = color;
+  ctx.fillRect(cx - bodyW/2, cy - 70, bodyW, bodyH);
+
+  // 身体纹理
+  ctx.fillStyle = accent;
+  ctx.globalAlpha = ctx.globalAlpha * 0.3;
+  ctx.fillRect(cx - bodyW/2 + 4, cy - 70, bodyW - 8, bodyH);
+  ctx.globalAlpha = f.invincibleFrames > 0 && f.invincibleFrames % 4 < 2 ? 0.4 : (f.freezeTimer > 0 ? 0.7 : (f.flashTimer > 0 && f.flashTimer % 2 === 0 ? 0.5 : 1));
+
+  // 头部
+  ctx.fillStyle = accent;
+  ctx.beginPath(); ctx.arc(cx, cy - 82, 14, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(cx - 4, cy - 84, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + (f.animState === 'hit' ? 2 : 4), cy - 84, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.arc(cx - 4, cy - 84, 1.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + (f.animState === 'hit' ? 2 : 4), cy - 84, 1.5, 0, Math.PI * 2); ctx.fill();
+
+  // 头带
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(cx, cy - 82, 15, -0.3, Math.PI + 0.3); ctx.stroke();
+
+  // 手臂
+  ctx.strokeStyle = color; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  const armWave = f.animState === 'walk' ? Math.sin(f.animTick * 0.5) * 5 : 0;
+  ctx.beginPath(); ctx.moveTo(cx - 8, cy - 55); ctx.lineTo(cx - 14, cy - 35 + armWave); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + 8, cy - 55); ctx.lineTo(cx + 14, cy - 35 - armWave); ctx.stroke();
+
+  // 拳头
+  ctx.fillStyle = accent;
+  ctx.beginPath(); ctx.arc(cx - 14, cy - 35 + armWave, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + 14, cy - 35 - armWave, 4, 0, Math.PI * 2); ctx.fill();
+
+  // 攻击延伸
+  if (f.animState === 'lp' || f.animState === 'hp' || f.animState === 'special') {
+    const ext = f.attackPhase === 'active' ? 30 : (f.attackPhase === 'startup' ? 15 : 0);
+    const d = f.facingRight ? 1 : -1;
+    ctx.strokeStyle = accent; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(cx + d * 8, cy - 50);
+    ctx.lineTo(cx + d * (8 + ext), cy - 55); ctx.stroke();
+    if (f.attackPhase === 'active') {
+      const atk = f.attackData;
+      let fxColor = accent;
+      if (atk && atk.elec) fxColor = '#ffff00';
+      else if (atk && atk.fire) fxColor = '#ff4400';
+      else if (atk && atk.freeze) fxColor = '#88ddff';
+      ctx.strokeStyle = fxColor; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(cx + d * (8 + ext), cy - 55, 10, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = fxColor; ctx.globalAlpha = 0.3;
+      ctx.beginPath(); ctx.arc(cx + d * (8 + ext), cy - 55, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = f.invincibleFrames > 0 && f.invincibleFrames % 4 < 2 ? 0.4 : (f.freezeTimer > 0 ? 0.7 : (f.flashTimer > 0 && f.flashTimer % 2 === 0 ? 0.5 : 1));
+    }
+  }
+
+  // 腿
+  ctx.strokeStyle = color; ctx.lineWidth = 6;
+  const legWave = f.animState === 'walk' ? Math.sin(f.animTick * 0.5 + Math.PI) * 5 : 0;
+  ctx.beginPath(); ctx.moveTo(cx - 5, cy - 30); ctx.lineTo(cx - 8 + legWave, cy - 5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + 5, cy - 30); ctx.lineTo(cx + 8 - legWave, cy - 5); ctx.stroke();
+
+  // 脚
+  ctx.fillStyle = accent;
+  ctx.fillRect(cx - 12 + legWave, cy - 5, 8, 4);
+  ctx.fillRect(cx + 4 - legWave, cy - 5, 8, 4);
+
+  // 防御护盾
+  if (f.blocking || f.state === 'BLOCK') {
+    ctx.strokeStyle = '#4488ff'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy - 50, 30, -Math.PI * 0.6, Math.PI * 0.6); ctx.stroke();
+  }
+
+  // 麻痹效果
+  if (f.electricParalyze > 0) {
+    ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 1.5;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(cx - 18 + rand(0, 36), cy - 75 + rand(0, 70));
+      ctx.lineTo(cx - 18 + rand(0, 36), cy - 75 + rand(0, 70));
+      ctx.stroke();
+    }
+  }
+
+  // 火焰DOT
+  if (f.fireDOTTimer > 0) {
+    ctx.fillStyle = '#ff4400'; ctx.globalAlpha = 0.4;
+    ctx.beginPath(); ctx.arc(cx, cy - 30, 8 + rand(0, 4), 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = f.invincibleFrames > 0 && f.invincibleFrames % 4 < 2 ? 0.4 : (f.freezeTimer > 0 ? 0.7 : (f.flashTimer > 0 && f.flashTimer % 2 === 0 ? 0.5 : 1));
+  }
+
+  ctx.restore();
+}
+
+function drawHUD(ctx) {
+  if (gameState !== STATE.FIGHTING && gameState !== STATE.TRAINING) return;
+  if (!p1 || !p2) return;
+
+  // P1 HP条
+  const barW = 170, barH = 18, barY = 12;
+  ctx.fillStyle = '#111';
+  ctx.fillRect(8, barY, barW, barH);
+  const p1hp = clamp(p1.hp / p1.maxHp, 0, 1);
+  const hpColor1 = p1hp > 0.5 ? '#44ff44' : (p1hp > 0.25 ? '#ffaa00' : '#ff4444');
+  ctx.fillStyle = hpColor1;
+  ctx.fillRect(8, barY, barW * p1hp, barH);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(8, barY, barW, barH);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText(p1.charData.name + '  ' + Math.max(0, Math.ceil(p1.hp)), 12, barY - 3);
+
+  // P2 HP条
+  ctx.fillStyle = '#111';
+  ctx.fillRect(CANVAS_W - 8 - barW, barY, barW, barH);
+  const p2hp = clamp(p2.hp / p2.maxHp, 0, 1);
+  const hpColor2 = p2hp > 0.5 ? '#44ff44' : (p2hp > 0.25 ? '#ffaa00' : '#ff4444');
+  ctx.fillStyle = hpColor2;
+  ctx.fillRect(CANVAS_W - 8 - barW * p2hp, barY, barW * p2hp, barH);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(CANVAS_W - 8 - barW, barY, barW, barH);
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'right';
+  ctx.fillText(p2.charData.name + '  ' + Math.max(0, Math.ceil(p2.hp)), CANVAS_W - 12, barY - 3);
+
+  // 计时器
+  const sec = Math.ceil(roundTimer / 60);
+  ctx.fillStyle = sec <= 10 ? '#ff4444' : '#fff';
+  ctx.font = 'bold 26px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(sec, CANVAS_W / 2, 42);
+
+  // 连击
+  if (comboCount > 1) {
+    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 22px sans-serif';
+    ctx.fillText(comboCount + ' HITS', CANVAS_W / 2, 68);
+  }
+
+  // 比分
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif';
+  ctx.fillText('P1 ' + p1Wins + ' - ' + p2Wins + ' P2', CANVAS_W / 2, 88);
+}
+
+function drawBackground(ctx) {
+  const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+  grad.addColorStop(0, '#0d0d1a');
+  grad.addColorStop(0.4, '#1a1a3e');
+  grad.addColorStop(0.7, '#16213e');
+  grad.addColorStop(1, '#0f3460');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // 远处建筑
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  for (let i = 0; i < 8; i++) {
+    const bx = i * 50 + 10, bh = 80 + rand(0, 120);
+    ctx.fillRect(bx, GROUND_Y - bh, 35, bh);
+  }
+
+  // 地面
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(0, GROUND_Y, CANVAS_W, CANVAS_H - GROUND_Y);
+  ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(CANVAS_W, GROUND_Y); ctx.stroke();
+  ctx.strokeStyle = '#444'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, GROUND_Y + 2); ctx.lineTo(CANVAS_W, GROUND_Y + 2); ctx.stroke();
+
+  // 装饰线
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  for (let i = 0; i < CANVAS_W; i += 40) {
+    ctx.beginPath(); ctx.moveTo(i, GROUND_Y); ctx.lineTo(i, GROUND_Y + 8); ctx.stroke();
+  }
+}
+
+function drawMenu(ctx) {
+  drawBackground(ctx);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 36px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('影武传说', CANVAS_W / 2, 140);
+  ctx.fillStyle = '#ffaa00'; ctx.font = '14px sans-serif';
+  ctx.fillText('PHANTOM BRAWL', CANVAS_W / 2, 165);
+
+  MENU_ITEMS.forEach((item, i) => {
+    const y = 260 + i * 60;
+    ctx.fillStyle = i === menuSelection ? '#ffaa00' : '#666';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillText(item, CANVAS_W / 2, y);
+    if (i === menuSelection) {
+      ctx.fillText('▶', CANVAS_W / 2 - 110, y);
+      ctx.fillText('◀', CANVAS_W / 2 + 110, y);
+    }
+  });
+
+  ctx.fillStyle = '#ffaa00'; ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('金币: ' + saveData.gold + '  |  战绩: ' + saveData.playerStats.wins + '胜/' + (saveData.playerStats.totalMatches - saveData.playerStats.wins) + '败', CANVAS_W / 2, 620);
+  ctx.fillText('最高连击: ' + saveData.playerStats.highestCombo, CANVAS_W / 2, 640);
+
+  // 碎片进度
+  if (!saveData.unlockedCharacters.includes('flame_dancer')) {
+    ctx.fillStyle = '#e84020'; ctx.font = '11px sans-serif';
+    ctx.fillText('焰舞碎片: ' + (saveData.fragments.flame_dancer || 0) + '/20', CANVAS_W / 2, 665);
+  }
+  if (!saveData.unlockedCharacters.includes('frost_whisper')) {
+    ctx.fillStyle = '#40c0e8'; ctx.font = '11px sans-serif';
+    ctx.fillText('霜语碎片: ' + (saveData.fragments.frost_whisper || 0) + '/20', CANVAS_W / 2, 685);
+  }
+
+  ctx.fillStyle = '#555'; ctx.font = '11px sans-serif';
+  ctx.fillText('摇杆移动 | 轻拳/重拳/必杀 攻击 | 快速下划防御 | 急划闪避', CANVAS_W / 2, 720);
+  ctx.fillText('键盘: WASD移动 J轻拳 K重拳 U必杀 I防御 O闪避', CANVAS_W / 2, 740);
+}
+
+function drawCharSelect(ctx) {
+  drawBackground(ctx);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 24px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('选择角色', CANVAS_W / 2, 50);
+
+  const chars = unlockedCharIds;
+  const labels = fightMode === 'pvp' ? ['P1选择 (←→切换)', 'P2选择 (↑↓切换)'] : ['选择角色 (←→切换)', ''];
+
+  for (let p = 0; p < (fightMode === 'pvp' ? 2 : 1); p++) {
+    const baseY = 100 + p * 300;
+    ctx.fillStyle = '#ffaa00'; ctx.font = '14px sans-serif';
+    ctx.fillText(labels[p], CANVAS_W / 2, baseY - 10);
+
+    chars.forEach((cid, i) => {
+      const c = CHARACTERS[cid];
+      const col = i % 3, row = Math.floor(i / 3);
+      const bx = 55 + col * 100, by = baseY + row * 110;
+      const selected = (p === 0 ? charSelectP1 : charSelectP2) === i;
+
+      ctx.fillStyle = selected ? 'rgba(255,170,0,0.2)' : 'rgba(255,255,255,0.03)';
+      ctx.strokeStyle = selected ? '#ffaa00' : '#444';
+      ctx.lineWidth = selected ? 3 : 1;
+      ctx.fillRect(bx, by, 85, 95);
+      ctx.strokeRect(bx, by, 85, 95);
+
+      // 迷你角色
+      ctx.fillStyle = c.color;
+      ctx.fillRect(bx + 28, by + 22, 28, 35);
+      ctx.fillStyle = c.accent;
+      ctx.beginPath(); ctx.arc(bx + 42, by + 18, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.beginPath(); ctx.arc(bx + 39, by + 16, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(bx + 45, by + 16, 2, 0, Math.PI * 2); ctx.fill();
+
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif';
+      ctx.fillText(c.name, bx + 42, by + 78);
+      ctx.fillStyle = '#888'; ctx.font = '9px sans-serif';
+      ctx.fillText('速度 ' + c.walkSpeed + ' | ' + c.desc, bx + 42, by + 90);
+    });
+  }
+
+  ctx.fillStyle = '#aaa'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('轻拳确认 | 重拳返回', CANVAS_W / 2, CANVAS_H - 30);
+}
+
+function drawShadowDojo(ctx) {
+  drawBackground(ctx);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 24px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('影武道场', CANVAS_W / 2, 50);
+  ctx.fillStyle = '#888'; ctx.font = '13px sans-serif';
+  ctx.fillText('分身管理 · 按任意攻击键返回', CANVAS_W / 2, 75);
+
+  if (saveData.shadowAIs.length === 0) {
+    ctx.fillStyle = '#666'; ctx.font = '16px sans-serif';
+    ctx.fillText('暂无分身', CANVAS_W / 2, 250);
+    ctx.fillText('完成PVE对战可自动创建分身', CANVAS_W / 2, 280);
+  } else {
+    saveData.shadowAIs.forEach((ai, i) => {
+      const y = 120 + i * 75;
+      ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fillRect(15, y, CANVAS_W - 30, 65);
+      ctx.strokeStyle = '#333'; ctx.strokeRect(15, y, CANVAS_W - 30, 65);
+      const c = CHARACTERS[ai.characterId];
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText(ai.name, 30, y + 22);
+      ctx.fillStyle = c ? c.color : '#888'; ctx.font = '11px sans-serif';
+      ctx.fillText(c ? c.name : '?', 30, y + 40);
+      ctx.fillStyle = '#aaa'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+      ctx.fillText(ai.wins + '胜 ' + ai.losses + '败', CANVAS_W - 30, y + 22);
+      // 行为向量条
+      const labels = ['攻击','连招','闪避','防御','跳跃','必杀'];
+      labels.forEach((l, j) => {
+        const bx = 30 + j * 58, bh = 6;
+        ctx.fillStyle = '#333'; ctx.fillRect(bx, y + 50, 52, bh);
+        ctx.fillStyle = '#ffaa00'; ctx.fillRect(bx, y + 50, 52 * ai.behaviorVector[j], bh);
+        ctx.fillStyle = '#888'; ctx.font = '7px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(l, bx + 26, y + 48);
+      });
+    });
+  }
+}
+
+function drawAutoBattle(ctx) {
+  drawBackground(ctx);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 24px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('离线斗技场', CANVAS_W / 2, 50);
+  ctx.fillStyle = '#888'; ctx.font = '13px sans-serif';
+  ctx.fillText('选择两个分身自动对战', CANVAS_W / 2, 75);
+
+  if (saveData.shadowAIs.length < 2) {
+    ctx.fillStyle = '#666'; ctx.font = '16px sans-serif';
+    ctx.fillText('至少需要2个分身', CANVAS_W / 2, 250);
+    ctx.fillText('去PVE对战收集数据创建分身', CANVAS_W / 2, 280);
+  } else {
+    ctx.fillStyle = '#ffaa00'; ctx.font = '14px sans-serif';
+    ctx.fillText('P1: ' + (saveData.shadowAIs[autoBattleSel1] ? saveData.shadowAIs[autoBattleSel1].name : ''), CANVAS_W / 2, 120);
+    ctx.fillText('VS', CANVAS_W / 2, 150);
+    ctx.fillText('P2: ' + (saveData.shadowAIs[autoBattleSel2] ? saveData.shadowAIs[autoBattleSel2].name : ''), CANVAS_W / 2, 180);
+
+    saveData.shadowAIs.forEach((ai, i) => {
+      const y = 220 + i * 45;
+      const c = CHARACTERS[ai.characterId];
+      ctx.fillStyle = (i === autoBattleSel1 || i === autoBattleSel2) ? '#ffaa00' : '#666';
+      ctx.font = '13px sans-serif';
+      const marker = i === autoBattleSel1 ? 'P1 ' : (i === autoBattleSel2 ? 'P2 ' : '');
+      ctx.fillText(marker + ai.name + ' (' + (c ? c.name : '?') + ') ' + ai.wins + 'W/' + ai.losses + 'L', CANVAS_W / 2, y);
+    });
+
+    ctx.fillStyle = '#ffaa00'; ctx.font = '15px sans-serif';
+    ctx.fillText('轻拳开始对战 | 重拳返回', CANVAS_W / 2, CANVAS_H - 30);
+  }
+}
+
+// ---- AI 控制器 ----
+class AIController {
+  constructor(difficulty, behaviorVector) {
+    this.difficulty = difficulty;
+    this.bv = behaviorVector || [0.5, 0.3, 0.2, 0.3, 0.2, 0.3];
+    this.decisionTimer = 0;
+    this.reactionDelay = difficulty === 'easy' ? 15 : (difficulty === 'normal' ? 8 : 3);
+    this.strategy = 'neutral';
+    this.stuckTimer = 0;
+    this.lastX = 0;
+  }
+
+  update(self, opponent) {
+    this.decisionTimer++;
+    if (this.decisionTimer < this.reactionDelay) return null;
+    this.decisionTimer = 0;
+
+    // 检测卡住
+    if (Math.abs(self.x - this.lastX) < 0.5) this.stuckTimer++;
+    else this.stuckTimer = 0;
+    this.lastX = self.x;
+
+    const dist = Math.abs(self.x - opponent.x);
+    const hpR = self.hp / self.maxHp;
+    const oppHpR = opponent.hp / opponent.maxHp;
+    const bv = this.bv;
+
+    if (hpR > 0.7 && oppHpR < 0.3) this.strategy = 'aggressive';
+    else if (hpR < 0.3) this.strategy = 'defensive';
+    else this.strategy = 'neutral';
+
+    const action = {};
+
+    // 移动
+    const idealDist = this.strategy === 'aggressive' ? 40 : (this.strategy === 'defensive' ? 100 : 60);
+    if (this.stuckTimer > 30) {
+      action.move = Math.random() > 0.5 ? 1 : -1;
+      this.stuckTimer = 0;
+    } else if (dist > idealDist + 20) {
+      action.move = self.x < opponent.x ? 1 : -1;
+    } else if (dist < idealDist - 10) {
+      action.move = self.x < opponent.x ? -1 : 1;
+    }
+
+    // 攻击
+    const roll = Math.random();
+    if (this.strategy === 'aggressive') {
+      if (roll < bv[0] * 0.8 && dist < 80) {
+        if (roll < 0.2 && bv[5] > 0.3) action.attack = 'sp';
+        else if (roll < 0.5) action.attack = 'hp';
+        else action.attack = 'lp';
+      }
+    } else if (this.strategy === 'neutral') {
+      if (roll < bv[0] * 0.5 && dist < 70) {
+        if (roll < 0.12 && bv[5] > 0.3) action.attack = 'sp';
+        else if (roll < 0.35) action.attack = 'hp';
+        else action.attack = 'lp';
+      }
+    } else {
+      if (roll < bv[0] * 0.25 && dist < 60) action.attack = 'lp';
+    }
+
+    // 防御
+    if (opponent.attackData && opponent.attackPhase === 'active') {
+      if (Math.random() < bv[3] * (this.strategy === 'defensive' ? 1.5 : 1)) {
+        action.block = true; action.attack = null;
+      }
+    }
+
+    // 闪避
+    if (Math.random() < bv[2] * 0.08) { action.dash = true; action.attack = null; }
+
+    // 跳跃攻击
+    if (self.grounded && Math.random() < bv[4] * 0.06 && dist < 80) {
+      action.jump = true;
+      if (!action.attack) action.attack = Math.random() < 0.5 ? 'hp' : 'lp';
+    }
+
+    if (action.attack === 'sp') {
+      action.spDir = randInt(1, 8);
+    }
+
+    return action;
+  }
+}
+
+// ---- 游戏主逻辑 ----
+let p1 = null, p2 = null;
+let ai = null;
+let autoBattleSel1 = 0, autoBattleSel2 = 1;
+let autoBattleAI1 = null, autoBattleAI2 = null;
+
+function initFight(mode) {
+  fightMode = mode;
+  roundNumber = 0; p1Wins = 0; p2Wins = 0;
+  unlockedCharIds = saveData.unlockedCharacters.filter(c => CHARACTERS[c]);
+  if (unlockedCharIds.length === 0) unlockedCharIds = ['shadow_blade'];
+
+  if (mode === 'pve') {
+    const p1Char = unlockedCharIds[charSelectP1] || 'shadow_blade';
+    const aiChars = unlockedCharIds.filter(c => c !== p1Char);
+    const p2Char = aiChars.length > 0 ? aiChars[randInt(0, aiChars.length - 1)] : 'shadow_blade';
+    p1 = new Fighter(p1Char, 100, true, true);
+    p2 = new Fighter(p2Char, 290, false, false);
+    ai = new AIController('normal');
+    // 初始化角色使用统计
+    if (!saveData.playerStats.charUsage) saveData.playerStats.charUsage = {};
+    if (!saveData.playerStats.charUsage[p1Char]) saveData.playerStats.charUsage[p1Char] = { matches:0, wins:0 };
+    saveData.playerStats.charUsage[p1Char].matches++;
+  } else if (mode === 'pvp') {
+    p1 = new Fighter(unlockedCharIds[charSelectP1] || 'shadow_blade', 100, true, true);
+    p2 = new Fighter(unlockedCharIds[charSelectP2] || 'shadow_blade', 290, false, false);
+    ai = null;
+  } else if (mode === 'training') {
+    p1 = new Fighter(unlockedCharIds[charSelectP1] || 'shadow_blade', 100, true, true);
+    p2 = new Fighter('shadow_blade', 290, false, false);
+    p2.hp = 99999;
+    ai = null;
+  } else if (mode === 'auto') {
+    if (saveData.shadowAIs.length < 2) return;
+    const ai1 = saveData.shadowAIs[autoBattleSel1];
+    const ai2 = saveData.shadowAIs[autoBattleSel2];
+    if (!ai1 || !ai2) return;
+    p1 = new Fighter(ai1.characterId, 100, true, true);
+    p2 = new Fighter(ai2.characterId, 290, false, false);
+    autoBattleAI1 = new AIController('hard', ai1.behaviorVector);
+    autoBattleAI2 = new AIController('hard', ai2.behaviorVector);
+    ai = null;
+  }
+
+  roundTimer = ROUND_DURATION;
+  comboCount = 0; maxCombo = 0;
+  gameState = mode === 'training' ? STATE.TRAINING : STATE.FIGHTING;
+  stateSubState = 'ROUND_INTRO';
+  stateTimer = 90;
+  roundMessages = [];
+}
+
+function startRound() {
+  if (p1) { p1.x = 100; p1.y = GROUND_Y; p1.hp = MAX_HP; p1.vx = 0; p1.vy = 0; p1.state = 'IDLE'; p1.canAct = true; p1.attackData = null; p1.animState = 'idle'; p1.blocking = false; }
+  if (p2) { p2.x = 290; p2.y = GROUND_Y; p2.hp = fightMode === 'training' ? 99999 : MAX_HP; p2.vx = 0; p2.vy = 0; p2.state = 'IDLE'; p2.canAct = true; p2.attackData = null; p2.animState = 'idle'; p2.blocking = false; }
+  roundTimer = ROUND_DURATION;
+  comboCount = 0;
+  stateSubState = 'FIGHT';
+}
+
+function handlePlayerInput(fighter, isP1) {
+  if (!fighter || !fighter.canActNow()) return;
+  const dir = input.currentDir;
+
+  // 移动
+  if (dir === 1 || dir === 2 || dir === 8) {
+    fighter.x += fighter.walkSpeed;
+    fighter.facingRight = true;
+    if (fighter.grounded) fighter.animState = 'walk';
+  } else if (dir === 4 || dir === 5 || dir === 6) {
+    fighter.x -= fighter.walkSpeed;
+    fighter.facingRight = false;
+    if (fighter.grounded) fighter.animState = 'walk';
+  } else if (fighter.grounded) {
+    fighter.animState = 'idle';
+  }
+
+  // 跳跃
+  if (dir === 3 && fighter.grounded) {
+    fighter.vy = fighter.jumpVelocity;
+    fighter.grounded = false;
+    fighter.animState = 'jump';
+    fighter.jumpAttacks++;
+  }
+
+  // 防御
+  if (input.block && fighter.grounded) {
+    fighter.blocking = true;
+    fighter.blocks++;
+    return;
+  }
+  fighter.blocking = false;
+
+  // 闪避
+  if (input.rapidFlick && fighter.grounded) {
+    fighter.dashFrames = 5;
+    fighter.invincibleFrames = 5;
+    fighter.dashes++;
+    particles.spawn(fighter.x, fighter.y - 40, 10, fighter.charData.accent, 2, 2);
+    input.rapidFlick = false;
+    return;
+  }
+
+  // 攻击
+  if (input.lpJust) fighter.startAttack('lp');
+  else if (input.hpJust) fighter.startAttack('hp');
+  else if (input.spJust && input.spDir > 0) fighter.startAttack('sp', input.spDir);
+}
+
+function handleAIInput(fighter, opponent, aiCtrl) {
+  if (!fighter || !fighter.canActNow()) return;
+  const action = aiCtrl.update(fighter, opponent);
+  if (!action) return;
+
+  if (action.move === 1) { fighter.x += fighter.walkSpeed; fighter.facingRight = true; fighter.animState = 'walk'; }
+  else if (action.move === -1) { fighter.x -= fighter.walkSpeed; fighter.facingRight = false; fighter.animState = 'walk'; }
+
+  if (action.jump && fighter.grounded) { fighter.vy = fighter.jumpVelocity; fighter.grounded = false; fighter.animState = 'jump'; }
+  if (action.block) { fighter.blocking = true; return; }
+  fighter.blocking = false;
+  if (action.dash && fighter.grounded) { fighter.dashFrames = 5; fighter.invincibleFrames = 5; return; }
+
+  if (action.attack === 'lp') fighter.startAttack('lp');
+  else if (action.attack === 'hp') fighter.startAttack('hp');
+  else if (action.attack === 'sp') fighter.startAttack('sp', action.spDir || 1);
+}
+
+function checkCollisions() {
+  if (!p1 || !p2) return;
+  const a1 = p1.getAttackbox();
+  if (a1) { const h2 = p2.getHitbox(); if (rectOverlap(a1, h2) && !p1.attackHit) { p1.attackHit = true; p2.applyHit(p1.attackData, p1); } }
+  const a2 = p2.getAttackbox();
+  if (a2) { const h1 = p1.getHitbox(); if (rectOverlap(a2, h1) && !p2.attackHit) { p2.attackHit = true; p1.applyHit(p2.attackData, p2); } }
+}
+
+function checkRoundEnd() {
+  if (stateSubState !== 'FIGHT') return;
+
+  let winner = null;
+  if (p1.hp <= 0) winner = 'p2';
+  else if (p2.hp <= 0) winner = 'p1';
+  else if (roundTimer <= 0) winner = p1.hp > p2.hp ? 'p1' : (p2.hp > p1.hp ? 'p2' : 'draw');
+
+  if (winner) {
+    stateSubState = 'ROUND_END';
+    stateTimer = 60;
+    if (winner === 'p1') p1Wins++;
+    else if (winner === 'p2') p2Wins++;
+
+    roundMessages.push(winner === 'p1' ? 'P1 获胜!' : (winner === 'p2' ? 'P2 获胜!' : '平局!'));
+
+    if (fightMode === 'pve') {
+      if (winner === 'p1') {
+        saveData.playerStats.wins++;
+        saveData.gold += 100;
+        if (saveData.playerStats.charUsage && p1) {
+          const cu = saveData.playerStats.charUsage[p1.charId];
+          if (cu) cu.wins = (cu.wins || 0) + 1;
+        }
+        if (Math.random() < 0.35) {
+          const fragChars = ['flame_dancer', 'frost_whisper'].filter(c => !saveData.unlockedCharacters.includes(c));
+          if (fragChars.length > 0) {
+            const fc = fragChars[randInt(0, fragChars.length - 1)];
+            saveData.fragments[fc] = (saveData.fragments[fc] || 0) + 1;
+            notificationText = '获得 ' + CHARACTERS[fc].name + ' 碎片! (' + saveData.fragments[fc] + '/20)';
+            notificationTimer = 90;
+          }
+        }
+        // 创建分身AI
+        if (saveData.shadowAIs.length < 10 && Math.random() < 0.5) {
+          const bv = p1.extractBehaviorVector();
+          saveData.shadowAIs.push({
+            id: 'ai_' + Date.now(),
+            name: '分身_' + (saveData.shadowAIs.length + 1),
+            characterId: p1.charId,
+            behaviorVector: bv,
+            wins: 0, losses: 0
+          });
+          notificationText = '新分身已创建!';
+          notificationTimer = 90;
+        }
+      } else {
+        saveData.gold = Math.max(0, saveData.gold - 20);
+      }
+      saveData.playerStats.totalMatches++;
+    }
+
+    if (fightMode === 'auto') {
+      // 更新分身战绩
+      const ai1 = saveData.shadowAIs[autoBattleSel1];
+      const ai2 = saveData.shadowAIs[autoBattleSel2];
+      if (ai1 && ai2) {
+        if (winner === 'p1') { ai1.wins++; ai2.losses++; }
+        else if (winner === 'p2') { ai2.wins++; ai1.losses++; }
+      }
+    }
+
+    if (p1Wins >= WINS_NEEDED || p2Wins >= WINS_NEEDED) {
+      stateSubState = 'MATCH_END';
+      stateTimer = 150;
+    }
+  }
+}
+
+function updateFight() {
+  if (stateSubState === 'ROUND_INTRO') { stateTimer--; if (stateTimer <= 0) startRound(); return; }
+  if (stateSubState === 'ROUND_END') {
+    stateTimer--;
+    if (stateTimer <= 0) {
+      if (p1Wins >= WINS_NEEDED || p2Wins >= WINS_NEEDED) { stateSubState = 'MATCH_END'; stateTimer = 150; }
+      else { roundNumber++; stateSubState = 'ROUND_INTRO'; stateTimer = 60; }
+    }
+    return;
+  }
+  if (stateSubState === 'MATCH_END') {
+    stateTimer--;
+    if (stateTimer <= 0) {
+      const msg = checkUnlocks();
+      if (msg) { unlockMsg = msg; unlockMsgTimer = 120; }
+      saveToDisk();
+      gameState = STATE.MENU;
+    }
+    return;
+  }
+
+  input.update();
+
+  if (fightMode !== 'auto') {
+    handlePlayerInput(p1, true);
+    if (fightMode === 'pvp') handlePlayerInput(p2, false);
+  }
+
+  if (fightMode === 'pve' && ai) handleAIInput(p2, p1, ai);
+  if (fightMode === 'auto') {
+    if (autoBattleAI1) handleAIInput(p1, p2, autoBattleAI1);
+    if (autoBattleAI2) handleAIInput(p2, p1, autoBattleAI2);
+  }
+
+  if (p1) p1.update();
+  if (p2) p2.update();
+  checkCollisions();
+  particles.update();
+  if (hitSparkTimer > 0) hitSparkTimer--;
+  if (screenShake > 0) screenShake--;
+  roundTimer--;
+  checkRoundEnd();
+  if (notificationTimer > 0) notificationTimer--;
+  input.endFrame();
+}
+
+function renderFight() {
+  ctx.save();
+  if (screenShake > 0) {
+    const sx = (Math.random() - 0.5) * screenShake * 2;
+    const sy = (Math.random() - 0.5) * screenShake * 2;
+    ctx.translate(sx, sy);
+  }
+
+  drawBackground(ctx);
+  if (p1) drawFighter(ctx, p1);
+  if (p2) drawFighter(ctx, p2);
+  particles.draw(ctx);
+  drawHUD(ctx);
+
+  // 状态文字
+  if (stateSubState === 'ROUND_INTRO') {
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 40px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Round ' + (roundNumber + 1), CANVAS_W / 2, CANVAS_H / 2 - 30);
+    ctx.fillStyle = '#ffaa00'; ctx.fillText('FIGHT!', CANVAS_W / 2, CANVAS_H / 2 + 20);
+  }
+  if (stateSubState === 'ROUND_END') {
+    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 40px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(roundMessages[roundMessages.length - 1] || '', CANVAS_W / 2, CANVAS_H / 2);
+  }
+  if (stateSubState === 'MATCH_END') {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 44px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(p1Wins >= WINS_NEEDED ? 'P1 胜利!' : 'P2 胜利!', CANVAS_W / 2, CANVAS_H / 2 - 20);
+    ctx.fillStyle = '#fff'; ctx.font = '22px sans-serif';
+    ctx.fillText('最大连击: ' + maxCombo, CANVAS_W / 2, CANVAS_H / 2 + 25);
+    if (fightMode === 'pve' && p1Wins >= WINS_NEEDED) {
+      ctx.fillStyle = '#ffaa00'; ctx.font = '16px sans-serif';
+      ctx.fillText('+100 金币', CANVAS_W / 2, CANVAS_H / 2 + 55);
+    }
+  }
+
+  // 通知
+  if (notificationTimer > 0) {
+    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(notificationText, CANVAS_W / 2, CANVAS_H / 2 + 80);
+  }
+
+  ctx.restore();
+
+  // UI控件
+  input.drawJoystick(ctx);
+  input.drawButtons(ctx);
+}
+
+function renderTraining() {
+  ctx.save();
+  if (screenShake > 0) {
+    ctx.translate((Math.random() - 0.5) * screenShake * 2, (Math.random() - 0.5) * screenShake * 2);
+  }
+  drawBackground(ctx);
+  if (p1) drawFighter(ctx, p1);
+  if (p2) drawFighter(ctx, p2);
+  particles.draw(ctx);
+  drawHUD(ctx);
+
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('训练模式 - 自由练习', CANVAS_W / 2, 105);
+  ctx.fillText('重拳键返回菜单', CANVAS_W / 2, 125);
+
+  ctx.restore();
+  input.drawJoystick(ctx);
+  input.drawButtons(ctx);
+}
+
+// ---- 菜单操作 ----
+function handleMenuInput() {
+  if (input.currentDir === 3) { menuSelection = (menuSelection - 1 + MENU_ITEMS.length) % MENU_ITEMS.length; input.currentDir = 0; }
+  if (input.currentDir === 7) { menuSelection = (menuSelection + 1) % MENU_ITEMS.length; input.currentDir = 0; }
+  if (input.lpJust || input.hpJust) {
+    switch (menuSelection) {
+      case 0: fightMode = 'pve'; gameState = STATE.CHAR_SELECT; break;
+      case 1: fightMode = 'pvp'; gameState = STATE.CHAR_SELECT; break;
+      case 2: fightMode = 'training'; gameState = STATE.CHAR_SELECT; break;
+      case 3: gameState = STATE.SHADOW_DOJO; break;
+      case 4: gameState = STATE.AUTO_BATTLE; break;
+    }
+  }
+}
+
+function handleCharSelectInput() {
+  if (input.currentDir === 1) { charSelectP1 = (charSelectP1 + 1) % unlockedCharIds.length; input.currentDir = 0; }
+  if (input.currentDir === 5) { charSelectP1 = (charSelectP1 - 1 + unlockedCharIds.length) % unlockedCharIds.length; input.currentDir = 0; }
+  if (fightMode === 'pvp') {
+    if (input.currentDir === 3) { charSelectP2 = (charSelectP2 - 1 + unlockedCharIds.length) % unlockedCharIds.length; input.currentDir = 0; }
+    if (input.currentDir === 7) { charSelectP2 = (charSelectP2 + 1) % unlockedCharIds.length; input.currentDir = 0; }
+  }
+  if (input.lpJust) { initFight(fightMode); }
+  if (input.hpJust) { gameState = STATE.MENU; }
+}
+
+function handleShadowDojoInput() {
+  if (input.hpJust || input.lpJust) { gameState = STATE.MENU; }
+}
+
+function handleAutoBattleInput() {
+  if (input.currentDir === 7) { autoBattleSel1 = (autoBattleSel1 + 1) % Math.max(1, saveData.shadowAIs.length); input.currentDir = 0; }
+  if (input.currentDir === 3) { autoBattleSel1 = (autoBattleSel1 - 1 + Math.max(1, saveData.shadowAIs.length)) % Math.max(1, saveData.shadowAIs.length); input.currentDir = 0; }
+  if (input.currentDir === 1) { autoBattleSel2 = (autoBattleSel2 + 1) % Math.max(1, saveData.shadowAIs.length); input.currentDir = 0; }
+  if (input.currentDir === 5) { autoBattleSel2 = (autoBattleSel2 - 1 + Math.max(1, saveData.shadowAIs.length)) % Math.max(1, saveData.shadowAIs.length); input.currentDir = 0; }
+  if (autoBattleSel1 === autoBattleSel2) autoBattleSel2 = (autoBattleSel1 + 1) % saveData.shadowAIs.length;
+  if (input.lpJust && saveData.shadowAIs.length >= 2) {
+    fightMode = 'auto';
+    initFight('auto');
+  }
+  if (input.hpJust) { gameState = STATE.MENU; }
+}
+
+// ---- 游戏循环 ----
+let lastTime = 0, accumulator = 0;
+
+function update() {
+  input.update();
+
+  switch (gameState) {
+    case STATE.MENU: handleMenuInput(); break;
+    case STATE.CHAR_SELECT: handleCharSelectInput(); break;
+    case STATE.FIGHTING: updateFight(); break;
+    case STATE.TRAINING: updateFight(); break;
+    case STATE.SHADOW_DOJO: handleShadowDojoInput(); break;
+    case STATE.AUTO_BATTLE: handleAutoBattleInput(); break;
+  }
+
+  if (unlockMsgTimer > 0) {
+    unlockMsgTimer--;
+    if (unlockMsgTimer <= 0) unlockMsg = '';
+  }
+
+  input.endFrame();
+}
+
+function render() {
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+
+  switch (gameState) {
+    case STATE.MENU: drawMenu(ctx); break;
+    case STATE.CHAR_SELECT: drawCharSelect(ctx); break;
+    case STATE.FIGHTING: renderFight(); break;
+    case STATE.TRAINING: renderTraining(); break;
+    case STATE.SHADOW_DOJO: drawShadowDojo(ctx); break;
+    case STATE.AUTO_BATTLE: drawAutoBattle(ctx); break;
+  }
+
+  // 解锁消息
+  if (unlockMsg && unlockMsgTimer > 0) {
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(CANVAS_W / 2 - 140, 200, 280, 50);
+    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(unlockMsg, CANVAS_W / 2, 232);
+  }
+}
+
+function gameLoop(timestamp) {
+  if (lastTime === 0) lastTime = timestamp;
+  accumulator += Math.min(timestamp - lastTime, 100);
+  lastTime = timestamp;
+
+  while (accumulator >= FIXED_STEP) {
+    update();
+    accumulator -= FIXED_STEP;
+  }
+
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveToDisk(); });
+window.addEventListener('beforeunload', () => saveToDisk());
+
+// ---- 启动 ----
+resizeCanvas();
+requestAnimationFrame(gameLoop);
+</script>
 </body>
-</html> 
+</html>

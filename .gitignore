@@ -1,0 +1,25 @@
+# OpsDesk 运行时与构建产物
+.venv/
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+*.log
+
+# 密钥与本地配置（切勿提交）
+.secrets/
+opsdesk/.secrets/
+*.pem
+!opsdesk/opsdesk/builtin_keys.py
+
+# Android
+opsdesk-android/.gradle/
+opsdesk-android/build/
+opsdesk-android/app/build/
+opsdesk-android/local.properties
+*.jks
+*.keystore
+
+# 工具链缓存
+.cache/
